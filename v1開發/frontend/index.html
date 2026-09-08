@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>探索餐廳 · Foodiemo</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/explore.js"></script>
+</head>
+<body>
+  <header class="header"><a class="brand" href="/">foodiemo<span>每一餐，都值得記得。</span></a><span class="edition">探索餐廳</span></header>
+  <main>
+    <section class="intro"><p class="eyebrow">DISCOVER YOUR NEXT BITE</p><h1>今天，想吃點什麼？</h1><p>從熟悉的街角，找到下一餐的靈感。</p></section>
+    <form id="search-form" class="search-bar" role="search">
+      <label>店名或地址<input id="query" name="q" placeholder="搜尋餐廳、街道…" maxlength="100" type="search"></label>
+      <label>餐廳分類<input id="category" name="category" placeholder="所有分類（可輸入完整分類）" maxlength="100"></label>
+      <button type="submit">搜尋餐廳 <span aria-hidden="true">↗</span></button>
+    </form>
+    <div class="section-heading"><h2>探索美食</h2><span id="result-count"></span></div>
+    <div id="list-status" class="status" role="status" aria-live="polite"></div>
+    <button id="retry" class="secondary" hidden>重新載入</button>
+    <section id="restaurants" class="grid" aria-label="餐廳列表"></section>
+    <nav class="pagination" aria-label="分頁"><button id="previous" class="secondary" disabled>← 上一頁</button><span id="page-label"></span><button id="next" class="secondary" disabled>下一頁 →</button></nav>
+  </main>
+  <footer>Foodiemo · 留一點時間，好好吃飯。</footer>
+  <dialog id="detail" aria-labelledby="detail-title">
+    <div class="dialog-header"><span>餐廳詳情</span><button id="close-detail" class="secondary" aria-label="關閉詳情">關閉 ×</button></div>
+    <div id="detail-body"></div>
+  </dialog>
+</body>
+</html>

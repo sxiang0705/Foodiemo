@@ -1,0 +1,24 @@
+# Only reviewed v1 source is tracked; legacy documents may contain credentials.
+/*
+!/.gitignore
+!/v1開發/
+**/.env
+**/.env.*
+!**/.env.example
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/*.pyc
+**/node_modules/
+**/backups/
+**/uploads/
+**/test-uploads/
+**/.local/
+**/test-results/
+**/*.dump
+**/*.backup
+**/*.db
+**/*.sqlite*
+**/*.pem
+**/*.key
+**/*.log
