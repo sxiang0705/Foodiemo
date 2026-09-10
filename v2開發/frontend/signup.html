@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sign Up - Morandi Style</title>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+        body {
+            background-color: #E3D5CA;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            position: fixed;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .phone-container {
+            width: min(100vh, 420px);
+            height: 762px;
+            background-color: #F5EBE1;
+            border-radius: 40px;
+            box-shadow: 0 20px 40px rgba(100, 80, 70, 0.15);
+            position: relative;
+            padding: 24px 30px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { font-size: 26px; font-weight: 500; line-height: 1.3; color: #6D5D55; }
+
+        .form-group { display: flex; flex-direction: column; gap: 14px; flex-grow: 1; }
+
+        .input-wrapper {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border: 1px solid transparent;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        .input-wrapper.error { border: 1px solid #ff4d4d; animation: shake 0.3s; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+        .input-wrapper i { color: #bfa093; font-size: 20px; }
+        .input-wrapper input { border: none; background: transparent; width: 100%; outline: none; font-size: 15px; color: #5c4b45; }
+        .input-wrapper input::placeholder { color: #bbafa9; }
+
+        .btn-container { margin-top: 18px; margin-bottom: 10px; }
+
+        .signup-btn, .google-fallback-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .signup-btn {
+            background-color: #D7BDB0;
+            color: white;
+            box-shadow: 0 8px 15px rgba(215, 189, 176, 0.4);
+        }
+
+        .google-fallback-btn {
+            margin-top: 12px;
+            background: white;
+            color: #5D4D40;
+            border: 1px solid #E4D6CB;
+            display: none;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #9c8e87;
+            font-size: 13px;
+            margin-top: 16px;
+        }
+
+        .divider::before, .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #D8C9BE;
+        }
+
+        #googleSignupMount {
+            min-height: 44px;
+            margin-top: 12px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .footer {
+            margin-top: auto;
+            text-align: center;
+            margin-bottom: 18px;
+            font-size: 13px;
+            color: #9c8e87;
+        }
+
+        .footer a { text-decoration: none; color: #6D5D55; font-weight: bold; }
+
+        @media screen and (max-width: 480px) {
+            body { background-color: #F5EBE1; align-items: flex-start; }
+            .phone-container {
+                width: 100%;
+                min-height: 100vh;
+                height: auto;
+                border-radius: 0;
+                box-shadow: none;
+                margin: 0;
+                padding: 40px 30px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-container">
+        <div class="header">
+            <h1>Make a memory<br>with us</h1>
+        </div>
+
+        <div class="form-group">
+            <div class="input-wrapper" id="nameWrapper">
+                <i class='bx bx-user'></i>
+                <input type="text" id="nameInput" placeholder="Name" autocomplete="name">
+            </div>
+
+            <div class="input-wrapper" id="dobWrapper">
+                <i class='bx bx-calendar'></i>
+                <input type="text" id="dobInput" placeholder="Birthday" onfocus="(this.type='date')" onblur="if(!this.value)this.type='text'">
+            </div>
+
+            <div class="input-wrapper" id="emailWrapper">
+                <i class='bx bx-envelope'></i>
+                <input type="email" id="emailInput" placeholder="G-mail" autocomplete="email">
+            </div>
+
+            <div class="input-wrapper" id="phoneWrapper">
+                <i class='bx bx-mobile'></i>
+                <input type="tel" id="phoneInput" placeholder="Phone" autocomplete="tel">
+            </div>
+
+            <div class="input-wrapper" id="passwordWrapper">
+                <i class='bx bx-lock-alt'></i>
+                <input type="password" id="passwordInput" placeholder="Password" autocomplete="new-password">
+                <i class='bx bx-hide' id="togglePassword" style="cursor: pointer; color: #bfa093;"></i>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button class="signup-btn" id="signupBtn">Sign up</button>
+            <div class="divider">or</div>
+            <div id="googleSignupMount"></div>
+            <button class="google-fallback-btn" id="googleSignupFallback">使用 Google 註冊</button>
+        </div>
+
+        <div class="footer">
+            <p>Already have an account? <a href="login.html" target="_top">Log in</a></p>
+        </div>
+    </div>
+
+    <script src="env.js"></script>
+    <script src="google-auth-config.js"></script>
+    <script src="config.js"></script>
+    <script>
+        const signupBtn = document.getElementById('signupBtn');
+        const inputs = {
+            name: { input: document.getElementById('nameInput'), wrapper: document.getElementById('nameWrapper') },
+            dob: { input: document.getElementById('dobInput'), wrapper: document.getElementById('dobWrapper') },
+            email: { input: document.getElementById('emailInput'), wrapper: document.getElementById('emailWrapper') },
+            phone: { input: document.getElementById('phoneInput'), wrapper: document.getElementById('phoneWrapper') },
+            password: { input: document.getElementById('passwordInput'), wrapper: document.getElementById('passwordWrapper') }
+        };
+
+        const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, '');
+        const googleClientId = window.FOOD_END_GOOGLE_CLIENT_ID || '';
+        const googleFallbackBtn = document.getElementById('googleSignupFallback');
+
+        window.parent.postMessage('lockSwiping', '*');
+        window.addEventListener('beforeunload', () => window.parent.postMessage('unlockSwiping', '*'));
+
+        function initUserDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains("user_profile")) db.createObjectStore("user_profile");
+                    if (!db.objectStoreNames.contains("posts_timeline")) db.createObjectStore("posts_timeline", { keyPath: "id" });
+                };
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        function showCodePreview(data) {
+            if (data.code_preview) {
+                alert(`目前是本機測試模式，驗證碼：${data.code_preview}`);
+            }
+        }
+
+        async function finalizeSignupPending(email, name) {
+            await clearLocalAppData();
+            localStorage.setItem('temp_signup_email', email);
+            localStorage.setItem('temp_signup_name', name);
+            localStorage.setItem('temp_verification_purpose', 'signup');
+            window.top.location.href = `otp_verify.html?email=${encodeURIComponent(email)}&purpose=signup`;
+        }
+
+        signupBtn.addEventListener('click', async function () {
+            let isValid = true;
+
+            for (const key in inputs) {
+                const field = inputs[key];
+                const value = field.input.value.trim();
+                field.wrapper.classList.remove('error');
+                if (value === "") {
+                    field.wrapper.classList.add('error');
+                    isValid = false;
+                }
+            }
+
+            if (!isValid) return;
+
+            const userData = {
+                name: inputs.name.input.value.trim(),
+                dob: inputs.dob.input.value.trim(),
+                email: inputs.email.input.value.trim(),
+                phone: inputs.phone.input.value.trim(),
+                password: inputs.password.input.value.trim()
+            };
+
+            signupBtn.textContent = '處理中...';
+            signupBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert('註冊失敗：' + (data.detail || '請檢查資料是否正確'));
+                    signupBtn.textContent = 'Sign up';
+                    signupBtn.disabled = false;
+                    return;
+                }
+
+                showCodePreview(data);
+                if (data.code_preview) {
+                    localStorage.setItem('temp_last_code_preview', data.code_preview);
+                } else {
+                    localStorage.removeItem('temp_last_code_preview');
+                }
+                await finalizeSignupPending(data.email || userData.email.toLowerCase(), data.name || userData.name);
+            } catch (error) {
+                console.error("Signup error:", error);
+                alert('伺服器連線失敗');
+                signupBtn.textContent = 'Sign up';
+                signupBtn.disabled = false;
+            }
+        });
+
+        document.getElementById('togglePassword').addEventListener('click', function () {
+            const passwordInput = document.getElementById('passwordInput');
+            const isPw = passwordInput.type === 'password';
+            passwordInput.type = isPw ? 'text' : 'password';
+            this.classList.toggle('bx-hide', !isPw);
+            this.classList.toggle('bx-show', isPw);
+        });
+
+        async function handleGoogleCredentialResponse(response) {
+            try {
+                const loginResponse = await fetch(`${API_BASE_URL}/login/google`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credential: response.credential })
+                });
+                const data = await loginResponse.json();
+                if (!loginResponse.ok) {
+                    throw new Error(data.detail || 'Google 登入失敗');
+                }
+
+                await clearLocalAppData();
+                localStorage.setItem('myProfileEmail', data.email);
+                localStorage.setItem('myProfileName', data.name);
+                localStorage.setItem('isPremiumUser', data.is_premium.toString());
+                if (data.avatar_url) {
+                    setStoredAvatarUrl(data.avatar_url);
+                } else {
+                    clearStoredAvatarUrl();
+                }
+
+                const db = await initUserDB();
+                const tx = db.transaction("user_profile", "readwrite");
+                tx.objectStore("user_profile").put(data.name, "username");
+                tx.oncomplete = () => {
+                    window.top.location.href = "index.html";
+                };
+            } catch (error) {
+                console.error(error);
+                alert(error.message || 'Google 登入失敗');
+            }
+        }
+
+        function initGoogleSignup() {
+            if (!googleClientId || !window.google || !google.accounts || !google.accounts.id) {
+                googleFallbackBtn.style.display = 'block';
+                return;
+            }
+
+            google.accounts.id.initialize({
+                client_id: googleClientId,
+                callback: handleGoogleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById('googleSignupMount'),
+                { theme: 'outline', size: 'large', width: 280, text: 'signup_with' }
+            );
+        }
+
+        googleFallbackBtn.addEventListener('click', () => {
+            alert('請先在 frontend/google-auth-config.js 填入 Google Client ID');
+        });
+
+        window.addEventListener('load', () => {
+            initGoogleSignup();
+            initUserDB();
+        });
+        document.addEventListener('keypress', (e) => { if (e.key === 'Enter') signupBtn.click(); });
+    </script>
+</body>
+</html>

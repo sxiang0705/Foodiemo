@@ -1,7 +1,8 @@
-# Only reviewed v1 source is tracked; legacy documents may contain credentials.
+# Only reviewed v1/v2 work is tracked; legacy documents may contain credentials.
 /*
 !/.gitignore
 !/v1開發/
+!/v2開發/
 **/.env
 **/.env.*
 !**/.env.example

@@ -1,0 +1,416 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>New Post</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+        
+    <meta name="mobile-web-app-capable" content="yes">
+        
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* --- 1. 基礎設定 --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { 
+            background-color: #ffffff; 
+            color: #000; 
+            padding-bottom: 60px; /* 預留底部按鈕空間 */ 
+            overflow-y: auto;
+            height: 100vh;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* --- 2. 頂部導航 --- */
+        .header { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 15px 20px; background: #fff; position: sticky; top: 0; z-index: 50;
+        }
+        .header-btn { font-size: 16px; color: #8e8e93; border: none; background: none; cursor: pointer; }
+        .header-title { font-size: 17px; font-weight: 600; }
+        .header-btn.finish { color: #be9f82; font-weight: 600; } 
+
+        /* --- 3. 主圖預覽區 --- */
+        .main-preview-container {
+            position: relative; width: 100%; aspect-ratio: 1/1; 
+            background-color: #f9f9f9; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #mainPreviewImg { width: 100%; height: 100%; object-fit: cover; display: none; transition: opacity 0.2s; }
+        .empty-placeholder { color: #ccc; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+        .overlay-controls {
+            position: absolute; bottom: 15px; right: 15px; left: 15px;
+            display: flex; justify-content: flex-end; align-items: center; gap: 10px; pointer-events: none; 
+        }
+
+        /* --- 按鈕樣式 --- */
+        .control-btn {
+            height: 36px; border: none; color: white; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px);
+            pointer-events: auto; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+        .btn-circle { width: 36px; border-radius: 50%; padding: 0; }
+        .btn-capsule { padding: 0 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+        .control-btn svg { width: 13px !important; height: 13px !important; }
+        .btn-text { font-size: 13px; font-weight: 600; margin-left: 0; max-width: 0; opacity: 0; white-space: nowrap; transition: all 0.3s ease; }
+        .btn-capsule .btn-text-static { font-size: 12px; font-weight: 600; margin-left: 6px; }
+        
+        .control-btn.active { background: #be9f82; color: #fff; }
+        #locationBtn.active { width: auto; padding: 0 16px; border-radius: 20px; }
+        #locationBtn.active .btn-text { max-width: 100px; opacity: 1; margin-left: 6px; }
+
+        /* --- 4. 下方網格 --- */
+        .grid-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 2px; }
+        .grid-item { position: relative; aspect-ratio: 1/1; overflow: hidden; background: #eee; cursor: pointer; }
+        .grid-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; transition: opacity 0.2s; }
+        .grid-item.active img { opacity: 1; }
+        .camera-upload-item { background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #999; cursor: pointer; }
+        .camera-upload-item:active { background-color: #e0e0e0; }
+        .camera-upload-item svg { width: 24px; height: 24px; }
+
+        /* 遮罩與圈圈 */
+        .overlay-mask { position: absolute; inset: 0; background: rgba(0,0,0,0.3); display: none; }
+        .grid-item.selected .overlay-mask { display: block; }
+        .check-circle {
+            position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; z-index: 10; display: none; 
+            border: 1px solid rgba(0,0,0,0.1); 
+            background-color: #dbdbdb; 
+            box-shadow: 0 0 4px rgba(0,0,0,0.2); justify-content: center; align-items: center;
+            font-size: 11px; font-weight: 700; color: white; transition: transform 0.1s ease;
+        }
+        .grid-item.mode-select .check-circle { display: flex; }
+        .grid-item.selected .check-circle { background-color: #be9f82; border-color: #be9f82; transform: scale(1.1); }
+
+        /* --- 底部重置按鈕 --- */
+        .reset-btn {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #ff3b30; color: white; border: none; padding: 8px 16px;
+            border-radius: 20px; font-size: 12px; z-index: 100; opacity: 0.8; cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <button class="header-btn" id="backBtn">Back</button>
+        <div class="header-title" id="pageTitle">Post</div>
+        <button class="header-btn finish" id="shareBtn">Finish</button>
+    </div>
+
+    <div id="contentArea">
+        <div class="main-preview-container">
+            <div id="emptyPlaceholder" class="empty-placeholder">
+                <i data-lucide="image" style="width:48px; height:48px; opacity:0.2;"></i>
+            </div>
+            
+            <img id="mainPreviewImg" src="" alt="Preview">
+            
+            <div class="overlay-controls">
+                <button class="control-btn btn-circle" id="tagFriendBtn"><i data-lucide="user"></i></button>
+                <button class="control-btn btn-circle" id="locationBtn"><i data-lucide="map-pin"></i><span class="btn-text">Kaohsiung</span></button>
+                <button class="control-btn btn-capsule" id="multiSelectBtn"><i data-lucide="layers"></i><span class="btn-text-static">SELECT MULTIPLE</span></button>
+            </div>
+        </div>
+        
+        <div class="grid-gallery" id="feedGrid"></div>
+        <input type="file" id="imageLoader" accept="image/*" multiple style="display: none;">
+    </div>
+
+    <button class="reset-btn" onclick="hardReset()">⚠️ 重置資料庫</button>
+
+    <canvas id="compressCanvas"></canvas>
+    
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        lucide.createIcons();
+        
+        // --- 1. 配置 ---
+        const dbName = DB_CONFIG.name;
+        const dbVersion = DB_CONFIG.version; 
+        const API_BASE_URL = DB_CONFIG.apiUrl; 
+        const channel = new BroadcastChannel('memory_update'); 
+        let db;
+
+        // --- 2. DOM ---
+        const mainPreviewImg = document.getElementById('mainPreviewImg');
+        const emptyPlaceholder = document.getElementById('emptyPlaceholder');
+        const feedGrid = document.getElementById('feedGrid');
+        const multiSelectBtn = document.getElementById('multiSelectBtn');
+        const tagFriendBtn = document.getElementById('tagFriendBtn');
+        const shareBtn = document.getElementById('shareBtn');
+        const backBtn = document.getElementById('backBtn');
+        const locationBtn = document.getElementById('locationBtn');
+        const pageTitle = document.getElementById('pageTitle');
+
+        let pendingImages = []; // { type: 'file'|'url', data: File|String }
+        let selectedIndices = []; // 選取的順序
+        
+        // --- 🌟 編輯模式變數 ---
+        let editPostId = new URLSearchParams(window.location.search).get('id');
+        let originalUrls = []; // 用於對比物理刪除
+        let isSelectMode = false;
+        let currentMainIndex = -1;
+        const createdUrls = new Set();
+
+        // --- 3. 初始化 ---
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, dbVersion);
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    const stores = ["posts", "users", "posts_timeline", "user_profile"];
+                    stores.forEach(store => {
+                        if (!database.objectStoreNames.contains(store)) {
+                            database.createObjectStore(store, { keyPath: "id" });
+                        }
+                    });
+                };
+                request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+                request.onerror = (e) => reject(e);
+            });
+        }
+
+        // --- 4. 記憶體管理 ---
+        function getImageUrl(item) {
+            if (item.type === 'url') return item.data;
+            const url = URL.createObjectURL(item.data);
+            createdUrls.add(url);
+            return url;
+        }
+
+        function releaseUrls() {
+            createdUrls.forEach(url => URL.revokeObjectURL(url));
+            createdUrls.clear();
+        }
+
+        // --- 5. 互動 ---
+        tagFriendBtn.addEventListener('click', () => tagFriendBtn.classList.toggle('active'));
+        locationBtn.addEventListener('click', () => locationBtn.classList.toggle('active'));
+
+        document.getElementById('imageLoader').addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            for (const file of files) {
+                pendingImages.push({ type: 'file', data: file });
+                const newIdx = pendingImages.length - 1;
+                if (!selectedIndices.includes(newIdx)) selectedIndices.push(newIdx);
+            }
+            currentMainIndex = pendingImages.length - 1;
+            renderMainPreview();
+            renderGrid();
+            document.getElementById('imageLoader').value = ''; 
+        });
+
+        // --- 6. 渲染邏輯 ---
+        function renderMainPreview() {
+            if (currentMainIndex !== -1 && pendingImages[currentMainIndex]) {
+                emptyPlaceholder.style.display = 'none';
+                mainPreviewImg.style.display = 'block';
+                if (mainPreviewImg.dataset.lastUrl) URL.revokeObjectURL(mainPreviewImg.dataset.lastUrl);
+                const newUrl = getImageUrl(pendingImages[currentMainIndex]);
+                mainPreviewImg.src = newUrl;
+                mainPreviewImg.dataset.lastUrl = newUrl;
+            } else {
+                emptyPlaceholder.style.display = 'flex';
+                mainPreviewImg.style.display = 'none';
+            }
+        }
+
+        function renderGrid() {
+            let html = `<div class="grid-item camera-upload-item" onclick="document.getElementById('imageLoader').click()"><i data-lucide="image-plus"></i></div>`;
+            html += pendingImages.map((item, idx) => {
+                const isActive = (idx === currentMainIndex);
+                const selIdx = selectedIndices.indexOf(idx);
+                const isSelected = selIdx !== -1;
+                let classes = `grid-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${isSelectMode ? 'mode-select' : ''}`;
+                const url = getImageUrl(item);
+                return `<div class="${classes}" onclick="handleGridClick(${idx})">
+                            <img src="${url}">
+                            <div class="overlay-mask"></div>
+                            <div class="check-circle">${isSelected ? selIdx + 1 : ''}</div>
+                        </div>`;
+            }).join('');
+            feedGrid.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        window.handleGridClick = (idx) => {
+            currentMainIndex = idx;
+            renderMainPreview();
+            if (isSelectMode) {
+                const pos = selectedIndices.indexOf(idx);
+                if (pos !== -1) selectedIndices.splice(pos, 1);
+                else selectedIndices.push(idx);
+            } else {
+                selectedIndices = [idx];
+            }
+            renderGrid();
+        };
+
+        multiSelectBtn.addEventListener('click', () => {
+            if (pendingImages.length === 0) return;
+            isSelectMode = !isSelectMode;
+            multiSelectBtn.classList.toggle('active', isSelectMode);
+            if (!isSelectMode && currentMainIndex !== -1) selectedIndices = [currentMainIndex];
+            renderGrid();
+        });
+
+        function goHome() {
+            // 移除原本會導致卡住的 shareBtn.disabled 檢查
+            releaseUrls();
+            if (mainPreviewImg.dataset.lastUrl) URL.revokeObjectURL(mainPreviewImg.dataset.lastUrl);
+            const params = new URLSearchParams(window.location.search);
+            const from = params.get('from');
+            let homeUrl = from === 'social' ? "index.html?tab=social" : "index.html";
+            try {
+                if (window.parent) window.parent.postMessage('unlockSwiping', '*');
+                channel.postMessage('updated');
+                window.top.location.href = homeUrl;
+            } catch (e) { window.location.replace(homeUrl); }
+        }
+
+        shareBtn.addEventListener('click', async () => {
+            if (selectedIndices.length === 0) { alert("請選取照片"); return; }
+            const userEmail = localStorage.getItem('myProfileEmail') || 'test@example.com';
+            shareBtn.disabled = true;
+            shareBtn.textContent = "傳送中...";
+
+            try {
+                const formData = new FormData();
+                formData.append("email", userEmail);
+                if (editPostId) formData.append("post_id", editPostId);
+
+                // --- 🌟 採集地點與標註 ---
+                formData.append("caption", ""); // 不使用文案，固定為空
+                
+                if (locationBtn.classList.contains('active')) {
+                    const locText = locationBtn.querySelector('.btn-text').innerText;
+                    formData.append("location", locText);
+                }
+
+                if (tagFriendBtn.classList.contains('active')) {
+                    formData.append("at_user", "Tagged"); // 模擬感：標記狀態
+                }
+
+                const keepUrls = [];
+                const uploadPromises = selectedIndices.map(async (idx) => {
+                    const item = pendingImages[idx];
+                    if (item.type === 'url') {
+                        keepUrls.push(item.data);
+                    } else {
+                        let file = item.data;
+                        if (file.size > 2 * 1024 * 1024) file = await compressImage(file);
+                        formData.append("files", file);
+                    }
+                });
+                await Promise.all(uploadPromises);
+                formData.append("keep_urls", JSON.stringify(keepUrls));
+
+                const endpoint = editPostId ? "update_post" : "upload_memory_post";
+                // 🔹 加固路徑拼接：防止雙斜線導致的 405 錯誤
+                const base = API_BASE_URL.replace(/\/+$/, ''); 
+                const finalUrl = `${base}/${endpoint}`;
+
+                const response = await fetch(finalUrl, {
+                    method: "POST",
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    // 使用統一的 BroadcastChannel 進行全域同步
+                    const channel = new BroadcastChannel('memory_update');
+                    channel.postMessage({ type: 'updated' });
+                    
+                    alert(editPostId ? "Update Success!" : "Share Success!");
+                    goHome();
+                } else {
+                    throw new Error(result.detail || "伺服器錯誤");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("發布失敗: " + err.message);
+                shareBtn.disabled = false;
+                shareBtn.textContent = "Finish";
+            }
+        });
+
+        function compressImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let w = img.width, h = img.height;
+                        const MAX_SIZE = 1280;
+                        if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; }
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        canvas.toBlob((blob) => {
+                            resolve(new File([blob], file.name, { type: "image/jpeg" }));
+                        }, 'image/jpeg', 0.8);
+                    };
+                };
+            });
+        }
+
+        backBtn.onclick = (e) => {
+            e.preventDefault();
+            if (shareBtn.disabled) return;
+            if (pendingImages.length > 0 && confirm("要捨棄內容並返回嗎？")) goHome();
+            else goHome();
+        };
+
+        window.hardReset = async () => {
+            if (confirm("確定要刪除所有本地資料並登出嗎？")) {
+                await fetch(`${API_BASE_URL}/logout`, { method: 'POST' }).catch(() => null);
+                await clearLocalAppData();
+                window.top.location.href = "login.html";
+            }
+        };
+
+        window.onload = async () => {
+            const isPremium = localStorage.getItem('isPremiumUser') === 'true';
+            if (!isPremium) {
+                const tagFriendBtn = document.getElementById('tagFriendBtn');
+                if (tagFriendBtn) tagFriendBtn.style.opacity = '0.3';
+            }
+
+            if (editPostId) {
+                pageTitle.innerText = "Edit Post";
+                try {
+                    const res = await fetch(`${API_BASE_URL}/get_post/${editPostId}`);
+                    const post = await res.json();
+                    if (post.imageUrls) {
+                        originalUrls = post.imageUrls;
+                        post.imageUrls.forEach(url => {
+                            pendingImages.push({ type: 'url', data: url });
+                            selectedIndices.push(pendingImages.length - 1);
+                        });
+                    }
+                    if (post.at_user === 'Tagged') tagFriendBtn.classList.add('active');
+                    if (post.location) {
+                        locationBtn.classList.add('active');
+                        locationBtn.querySelector('.btn-text').innerText = post.location;
+                    }
+                    renderGrid();
+                } catch (e) { console.error("載入舊貼文失敗", e); }
+            } else {
+                initDB();
+            }
+        };
+    </script>
+</body>
+</html>
+
+

@@ -1,0 +1,605 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Memories</title>
+    <style>
+        /* --- 全局基礎設定 --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #F3ECE5; padding: 24px; color: #8C7B6D; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overscroll-behavior-y: none; position: relative; overflow-y: auto; -webkit-overflow-scrolling: touch;}
+
+        html, body {
+            /* 禁止瀏覽器的橡皮筋效果與預設手勢 */
+            overscroll-behavior-x: none;
+            touch-action: pan-y; /* 只允許上下滑，禁止左右滑 */
+        }
+        /* 標題區 */
+        h1 {
+            font-size: 32px; 
+            font-weight: 700; 
+            color: #8C735D; 
+            margin-bottom: 5px; 
+            text-align: center; 
+            padding-bottom: 8px;
+        }
+
+        .subtitle { 
+            font-size: 14px; 
+            color: #B0A093; 
+            margin-bottom: 20px; 
+            text-align: center; 
+            padding-bottom: 10px;
+        }
+        
+        /* Reset 按鈕 (左上角) - 核彈級 */
+        .clear-btn {
+            position: absolute; top: 20px; left: 20px; z-index: 100;
+            background-color: rgba(255, 255, 255, 0.8); color: #d32f2f; border: 1px solid #d32f2f; 
+            padding: 8px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer; 
+            display: flex; align-items: center; gap: 5px;
+        }
+
+        /* 日曆樣式 */
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 350px; margin-bottom: 20px; }
+        .month-label { font-size: 20px; font-weight: 600; color: #6D5D50; text-align: center; width: 180px; }
+        .nav-btn { background: none; border: none; cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .nav-btn svg { width: 24px; height: 24px; stroke: #8C7B6D; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+        .page-shell {
+            width: 100%;
+            min-height: calc(100vh - 48px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            padding: 18px 0;
+        }
+
+        .title-group {
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .calendar-container { width: 100%; max-width: 350px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; text-align: center; }
+        .weekday { font-size: 13px; font-weight: 600; margin-bottom: 15px; color: #B0A093; }
+        .day-cell { aspect-ratio: 1/1; display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: 500; color: #A69688; position: relative; border-radius: 50%; }
+        
+        .memory-photo { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 2; border: 2px solid #F3ECE5; box-shadow: 0 4px 8px rgba(0,0,0,0.15); cursor: pointer; }
+        .multiple-indicator { position: absolute; width: 100%; height: 100%; border-radius: 50%; background-color: #8C735D; top: 3px; left: 3px; z-index: 1; opacity: 0.3; }
+        
+        .date-overlay { position: absolute; z-index: 3; color: #fff; font-weight: 700; font-size: 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.6); pointer-events: none; }
+        .today-circle { background-color: #8C735D; color: white; width: 100%; height: 100%; border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- Story Viewer --- */
+        .story-image { 
+            width: 100%; 
+            height: 100%; 
+            /* 核心設定：像背景一樣填滿，多出的部分自動裁掉 */
+            object-fit: cover; 
+            /* 確保人臉或主體盡量在中間 */
+            object-position: center; 
+            pointer-events: none; 
+        }
+
+        .story-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #1a1a1a; /* 稍微帶點灰的黑，比較柔和 */
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s ease;
+        }
+
+        /* 2. 圖片容器：這裡是消除壓迫感的關鍵 */
+        #storyImageDisplay {
+            max-height: 85vh;    /* 上下留出足夠空間，不頂天立地 */
+            object-fit: contain; /* 完整顯示照片，不裁切 */
+        }
+        .story-overlay.active { display: flex; opacity: 1; transform: translateY(0); }
+        #storyTimeLabel {
+            display: none !important;
+        }
+        #storyOverlay {
+            /* 禁止瀏覽器的所有手勢行為（如左右滑動返回），只靠 JS 控制 */
+            touch-action: none; 
+            /* 確保刪除按鈕層級夠高 */
+            z-index: 2000;
+        }
+
+        .delete-btn {
+            pointer-events: auto !important; /* 確保按鈕一定能點到 */
+            cursor: pointer;
+        }
+        .progress-container { position: absolute; bottom: 30px; left: 10px; right: 10px; height: 3px; display: flex; gap: 5px; z-index: 10000; }
+        .bar { flex: 1; height: 100%; background-color: rgba(255, 255, 255, 0.3); border-radius: 2px; overflow: hidden; position: relative; }
+        .bar-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background-color: #ffffff; transition: width 0.1s linear; }
+        .bar.watched .bar-fill { width: 100%; }
+
+        /* --- 垃圾桶按鈕 (只刪單張) --- */
+        .delete-btn {
+            position: absolute; 
+            top: 60px; right: 25px; 
+            z-index: 2147483647; 
+            width: 40px; height: 40px; 
+            display: flex; justify-content: center; align-items: center;
+            background: rgba(0, 0, 0, 0.4); 
+            border-radius: 50%; cursor: pointer;
+            backdrop-filter: blur(5px); 
+            border: 1px solid rgba(255,255,255,0.3);
+            pointer-events: auto !important; 
+        }
+        .delete-btn:active { transform: scale(0.9); background: rgba(200, 0, 0, 0.6); }
+        .delete-btn svg { stroke: white; width: 24px; height: 24px; pointer-events: none; }
+
+        /* 隱形觸控區 */
+        .tap-area { position: absolute; top: 0; height: 100%; width: 35%; z-index: 1001; }
+        .tap-left { left: 0; }
+        .tap-right { right: 0; }
+        
+        #storyOverlay.active {
+            /* 當限動開啟時，絕對禁止任何橫向位移 */
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="clear-btn" onclick="clearAllData()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        RESET APP
+    </button>
+
+    <div class="page-shell">
+        <div class="title-group">
+            <h1>My Memories</h1>
+            <div class="subtitle">Keep your moments</div>
+        </div>
+
+        <div class="calendar-header">
+            <button class="nav-btn" onclick="changeMonth(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+            <div class="month-label" id="monthLabel">December 2024</div>
+            <button class="nav-btn" onclick="changeMonth(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+        </div>
+
+        <div class="calendar-container" id="calendarContainer"></div>
+    </div>
+
+    <div id="storyOverlay" class="story-overlay">
+        <img id="storyImageDisplay" class="story-image" src="" alt="Story">
+        <div id="progressBarContainer" class="progress-container"></div>
+        
+        <div class="tap-area tap-left" onclick="prevStory(event)"></div>
+        <div class="tap-area tap-right" onclick="nextStory(event)"></div>
+
+        <div class="delete-btn" onclick="deleteCurrentStory(event)" ontouchstart="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </div>
+        <div id="storyTimeLabel" style="color: white; font-size: 14px; font-weight: 600; text-shadow: 1px 1px 3px rgba(0,0,0,0.5); padding: 10px;">
+        </div>
+    </div>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        // --- 1. 基礎變數與初始化 (對接 config.js) ---
+        const dbName = DB_CONFIG.name;
+        const dbVersion = DB_CONFIG.version; // 使用 config.js 中的固定版本
+        const API_BASE_URL = DB_CONFIG.apiUrl;
+
+        const channel = new BroadcastChannel('memory_update');
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+        const DURATION = 3000; 
+
+        let db;
+        let savedMemories = {};
+        let displayDate = new Date();
+        let storyList = [], currentIndex = 0, storyTimer;
+        let startY = 0, startX = 0, currentY = 0, isDragging = false;
+
+        const overlay = document.getElementById('storyOverlay');
+
+        // --- 2. 強力攔截左右滑動 (防止 PWA 或行動裝置側滑返回) ---
+        window.addEventListener('touchstart', (e) => {
+            if (overlay && overlay.classList.contains('active')) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (overlay && overlay.classList.contains('active')) {
+                const moveX = e.touches[0].clientX;
+                const moveY = e.touches[0].clientY;
+                const diffX = Math.abs(moveX - startX);
+                const diffY = Math.abs(moveY - startY);
+
+                // 如果橫移大於縱移，判定為側滑，直接攔截
+                if (diffX > diffY && e.cancelable) {
+                    e.preventDefault();
+                }
+            }
+        }, { passive: false });
+
+        // --- 3. 資料存取與資料庫 ---
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, dbVersion);
+                
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains("posts")) {
+                        database.createObjectStore("posts", { keyPath: "id" });
+                    }
+                };
+
+                request.onsuccess = (e) => { 
+                    db = e.target.result; 
+                    resolve(db); 
+                };
+                request.onerror = (e) => reject(e);
+            });
+        }
+
+        channel.onmessage = async function(event) {
+            if (event.data === 'updated' || event.data.action === 'updated') { 
+                await loadDataFromDB(); 
+            }
+        };
+
+        async function loadDataFromDB() {
+            const myEmail = localStorage.getItem('myProfileEmail');
+            
+            // 即使沒有 Email，也要先畫出空白日曆
+            renderCalendar(); 
+
+            if (!myEmail) {
+                console.warn("未找到 Email，僅顯示空白日曆");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/get_memories?email=${myEmail}&t=${Date.now()}`);
+                const result = await response.json();
+                
+                // --- 修正點：相容多種後端回傳格式 ---
+                let memoriesArray = [];
+                if (Array.isArray(result)) {
+                    memoriesArray = result;
+                } else if (result.status === 'success' && Array.isArray(result.data)) {
+                    memoriesArray = result.data;
+                } else if (Array.isArray(result.data)) {
+                    memoriesArray = result.data;
+                }
+
+                if (memoriesArray.length > 0) {
+                    savedMemories = {}; // 清空舊資料
+                    
+                    memoriesArray.forEach(record => {
+                        // 確保日期存在，且格式為 YYYY-MM-DD
+                        const dateKey = record.date; 
+                        if (!dateKey) return;
+
+                        if (!savedMemories[dateKey]) savedMemories[dateKey] = [];
+                        
+                        // 解析多圖或單圖
+                        const imgList = record.imageUrls || (record.url ? [record.url] : []);
+                        
+                        imgList.forEach((url, index) => {
+                            savedMemories[dateKey].push({
+                                dbId: record.id, 
+                                url: url, 
+                                timestamp: (record.timestamp || Date.now()) + index,
+                                date: dateKey
+                            });
+                        });
+                    });
+
+                    // 排序每一天的照片（由舊到新）
+                    for (let key in savedMemories) {
+                        savedMemories[key].sort((a, b) => a.timestamp - b.timestamp);
+                    }
+                    
+                    console.log("✅ 成功載入回憶資料:", savedMemories);
+                    renderCalendar(); // 重新渲染有照片的日曆
+                } else {
+                    console.log("📭 伺服器端目前沒有您的回憶照片");
+                }
+            } catch (e) { 
+                console.error("❌ 讀取 API 失敗:", e); 
+            }
+        }
+        // --- 4. 日曆渲染 ---
+        function renderCalendar() {
+            const container = document.getElementById('calendarContainer');
+            const label = document.getElementById('monthLabel');
+            if (!container || !label) return;
+            
+            container.innerHTML = '';
+            const year = displayDate.getFullYear();
+            const month = displayDate.getMonth();
+            label.innerText = `${monthNames[month]} ${year}`;
+
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid fade-in';
+            
+            // 星期標頭
+            weekdays.forEach(day => {
+                const d = document.createElement('div');
+                d.className = 'weekday'; d.innerText = day; grid.appendChild(d);
+            });
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            // 填充空白
+            for (let i = 0; i < firstDayIndex; i++) grid.appendChild(document.createElement('div'));
+
+            // 填充日期
+            for (let d = 1; d <= daysInMonth; d++) {
+                const cell = document.createElement('div');
+                cell.className = 'day-cell';
+                const mStr = String(month + 1).padStart(2, '0');
+                const dStr = String(d).padStart(2, '0');
+                const dateKey = `${year}-${mStr}-${dStr}`;
+                
+                if (savedMemories[dateKey] && savedMemories[dateKey].length > 0) {
+                    const photos = savedMemories[dateKey];
+                    const lastRecord = photos[photos.length - 1]; 
+                    
+                    if (photos.length > 1) {
+                        const ind = document.createElement('div');
+                        ind.className = 'multiple-indicator';
+                        cell.appendChild(ind);
+                    }
+                    
+                    const img = document.createElement('img');
+                    img.src = lastRecord.url;
+                    img.className = 'memory-photo';
+                    img.onclick = () => openStoryViewer(dateKey);
+                    cell.appendChild(img);
+                    
+                    const num = document.createElement('span');
+                    num.className = 'date-overlay'; num.innerText = d;
+                    cell.appendChild(num);
+                } else {
+                    const today = new Date();
+                    if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === d) {
+                        const c = document.createElement('div');
+                        c.className = 'today-circle'; c.innerText = d; cell.appendChild(c);
+                    } else { 
+                        cell.innerText = d; 
+                    }
+                }
+                grid.appendChild(cell);
+            }
+            container.appendChild(grid);
+        }
+
+        function changeMonth(step) {
+            displayDate.setDate(1);
+            displayDate.setMonth(displayDate.getMonth() + step);
+            renderCalendar();
+        }
+
+        function resetToCurrentMonth() {
+            const now = new Date();
+            displayDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            renderCalendar();
+        }
+
+        function handleShellVisibility(event) {
+            if (event.data && event.data.type === 'pageVisibility' && event.data.visible) {
+                resetToCurrentMonth();
+            }
+        }
+
+        // --- 5. IG Story 系統 ---
+        function openStoryViewer(clickedDateKey) {
+            storyList = [];
+            let foundStartIndex = -1;
+            const sortedKeys = Object.keys(savedMemories).sort((a, b) => new Date(a) - new Date(b));
+
+            sortedKeys.forEach(key => {
+                savedMemories[key].forEach(record => {
+                    if (foundStartIndex === -1 && key === clickedDateKey) {
+                        foundStartIndex = storyList.length;
+                    }
+                    storyList.push({ ...record });
+                });
+            });
+
+            currentIndex = foundStartIndex !== -1 ? foundStartIndex : 0;
+
+            if (overlay && storyList.length > 0) {
+                overlay.classList.add('active');
+                document.body.style.overflow = 'hidden'; 
+                window.parent.postMessage('lockSwiping', '*'); // 通知父頁面
+                renderStory();
+            }
+        }
+
+        function renderStory() {
+            if (currentIndex < 0 || currentIndex >= storyList.length) return;
+            
+            const currentItem = storyList[currentIndex];
+            const displayImg = document.getElementById('storyImageDisplay');
+            if (displayImg) displayImg.src = currentItem.url;
+
+            const sameDay = storyList.filter(s => s.date === currentItem.date);
+            const idxInDay = sameDay.findIndex(s => s.url === currentItem.url && s.timestamp === currentItem.timestamp);
+            const barContainer = document.getElementById('progressBarContainer');
+            
+            if (barContainer) {
+                barContainer.innerHTML = '';
+                sameDay.forEach((s, i) => {
+                    const bar = document.createElement('div');
+                    bar.className = 'bar ' + (i < idxInDay ? 'watched' : '');
+                    const fill = document.createElement('div');
+                    fill.className = 'bar-fill';
+                    bar.appendChild(fill);
+                    barContainer.appendChild(bar);
+                    
+                    if (i === idxInDay) {
+                        setTimeout(() => {
+                            fill.style.width = '100%';
+                            fill.style.transition = `width ${DURATION}ms linear`;
+                        }, 10);
+                    } else if (i < idxInDay) { 
+                        fill.style.width = '100%'; 
+                    }
+                });
+            }
+
+            clearTimeout(storyTimer);
+            storyTimer = setTimeout(() => nextStory(), DURATION);
+        }
+
+        function nextStory(e) { 
+            if(e) e.stopPropagation(); 
+            if (currentIndex < storyList.length - 1) { 
+                currentIndex++; 
+                renderStory(); 
+            } else { 
+                closeStory(); 
+            } 
+        }
+
+        function prevStory(e) { 
+            if(e) e.stopPropagation(); 
+            if (currentIndex > 0) { 
+                currentIndex--; 
+                renderStory(); 
+            } 
+        }
+
+        function closeStory() { 
+            clearTimeout(storyTimer); 
+            if (overlay) {
+                overlay.classList.remove('active'); 
+                overlay.style.transform = 'translateY(0)';
+                overlay.style.opacity = '1';
+            }
+            document.body.style.overflow = ''; 
+            window.parent.postMessage('unlockSwiping', '*');
+        }
+
+        // --- 6. 刪除邏輯 ---
+        async function deleteCurrentStory(e) {
+            if (e) { e.stopPropagation(); e.preventDefault(); }
+            const currentItem = storyList[currentIndex];
+            if (!currentItem || !currentItem.dbId) return;
+
+            if (!confirm("確定要刪除這張照片嗎？")) return;
+
+            // --- 修改處：從 localStorage 獲取 email ---
+            const myEmail = localStorage.getItem('myProfileEmail'); 
+            if (!myEmail) {
+                alert("登入資訊已過期，請重新登入");
+                return;
+            }
+
+            try {
+                // --- 修改處：URL 加入 &email= 參數 ---
+                const url = `${API_BASE_URL}/delete_single_photo?post_id=${currentItem.dbId}&photo_url=${encodeURIComponent(currentItem.url)}&email=${encodeURIComponent(myEmail)}`;
+                
+                const response = await fetch(url, { method: 'DELETE' });
+
+                if (response.ok) {
+                    channel.postMessage('updated'); 
+                    
+                    // 以下邏輯保持不變...
+                    const dateKey = currentItem.date;
+                    savedMemories[dateKey] = savedMemories[dateKey].filter(item => item.url !== currentItem.url);
+                    storyList.splice(currentIndex, 1);
+                    
+                    if (storyList.length === 0) {
+                        closeStory();
+                    } else {
+                        if (currentIndex >= storyList.length) currentIndex = storyList.length - 1;
+                        renderStory();
+                    }
+                    renderCalendar();
+                } else {
+                    const errData = await response.json();
+                    alert("刪除失敗: " + (errData.detail || "未知錯誤"));
+                }
+            } catch (err) {
+                alert("連線失敗，請檢查網路");
+            }
+        }
+
+        // --- 7. 下拉關閉效果 ---
+        overlay.addEventListener('touchstart', (e) => { 
+            if(e.target.closest('.delete-btn') || e.target.closest('.story-nav')) return;
+            startY = e.touches[0].clientY; 
+            isDragging = false; 
+            overlay.style.transition = 'none'; 
+        }, { passive: false });
+        
+        overlay.addEventListener('touchmove', (e) => { 
+    if(e.target.closest('.delete-btn') || e.target.closest('.story-nav')) return;
+    
+    currentY = e.touches[0].clientY; 
+    const diffY = currentY - startY;
+
+            // 修正點：增加 10 像素的緩衝區，防止極輕微的抖動觸發拖拽
+            if (diffY > 10) { 
+                isDragging = true; 
+                if (e.cancelable) e.preventDefault(); 
+                overlay.style.transform = `translateY(${diffY}px)`; 
+                overlay.style.opacity = 1 - (diffY / 600); 
+            } 
+        }, { passive: false });
+
+        overlay.addEventListener('touchend', () => {
+            if (!isDragging) return;
+            overlay.style.transition = '0.3s ease-out';
+            if (currentY - startY > 150) { 
+                closeStory(); 
+            } else { 
+                overlay.style.transform = 'translateY(0)'; 
+                overlay.style.opacity = '1'; 
+            }
+            isDragging = false;
+        });
+
+        async function clearAllData() {
+            if(confirm("這將清除所有緩存並登出，確定嗎？")) {
+                await fetch(`${API_BASE_URL}/logout`, { method: 'POST' }).catch(() => null);
+                await clearLocalAppData();
+                alert("App 已重置");
+                window.top.location.href = "login.html";
+            }
+        }
+
+        window.addEventListener('pageshow', resetToCurrentMonth);
+        window.addEventListener('focus', resetToCurrentMonth);
+        window.addEventListener('message', handleShellVisibility);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                resetToCurrentMonth();
+            }
+        });
+
+        // --- 初始化執行 ---
+        initDB().then(async () => { 
+            resetToCurrentMonth();
+            await loadDataFromDB(); 
+        });
+    </script>
+</body>
+</html>
+
+

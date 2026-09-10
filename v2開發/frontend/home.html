@@ -1,0 +1,327 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Home</title>
+    <style>
+        /* Global Settings */
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        html, body { width: 100%; height: 100%; overflow: hidden ; background-color: #F3ECE5; }
+        body { display: flex; flex-direction: column; justify-content: space-between; }
+
+        /* Header */
+        .header { flex-shrink: 0; padding: 30px 24px 5px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .brown-btn { background-color: #9C7C66; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        .avatar-placeholder { width: 50px; height: 50px; border-radius: 50%; }
+        .search-pill { height: 50px; width: 140px; border-radius: 25px; display: flex; justify-content: flex-start; align-items: center; padding-left: 15px; }
+        .chat-btn { width: 50px; height: 50px; border-radius: 50%; }
+
+        /* Main Content */
+        .c{
+            margin:0px 0;
+        }
+        
+        .content { 
+            flex: 1; 
+            width: 100%; 
+            /* 讓 Flexbox 負責置中，移除 margin */
+            margin: 0; 
+            padding: 20px 24px; 
+            
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            overflow: hidden; 
+        }
+
+        .card { 
+            width: 100%; 
+            max-width: 500px; 
+            /* 移除多餘的 margin */
+            margin: 10px 0;
+            
+            /* 強制正方形 */
+            aspect-ratio: 1 / 1; 
+            
+            /* --- ★★★ 簡單暴力法 ★★★ --- */
+            /* 1. 容器設圓角 (雙重保險) */
+            border-radius: 80px;
+            
+            /* 2. 背景透明，避免露出尖角 */
+            background-color: transparent; 
+            position: relative; 
+            
+            /* 3. 移除所有複雜的裁切語法，回歸最原始的設定 */
+            
+            transition: transform 0.2s ease; 
+            cursor: grab;
+        }
+
+        .card img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            display: block; 
+            pointer-events: none; 
+            user-select: none;
+            
+            /* --- ★★★ 關鍵修正：直接讓圖片變圓 ★★★ --- */
+            /* 直接命令圖片變成圓角，這是最不會出錯的方法 */
+            border-radius: 80px; 
+        }
+
+        /* Footer */
+        .footer { flex-shrink: 0; padding: 5px 40px 40px 40px; display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 600px; align-self: center; }
+        .icon-brown { stroke: #9C7C66; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+        
+        .shutter-btn { width: 72px; height: 72px; border-radius: 50%; border: 4px solid #9C7C66; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: transform 0.1s; }
+        .shutter-btn:active { transform: scale(0.95); }
+        .shutter-inner { width: 56px; height: 56px; background-color: #9C7C66; border-radius: 50%; }
+        svg { display: block; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.4); z-index: 200; display: none; justify-content: center; align-items: flex-end; opacity: 0; transition: opacity 0.3s; }
+        .modal-overlay.show { display: flex; opacity: 1; }
+        .action-sheet { width: 100%; max-width: 100%; margin-bottom: 0; background-color: #F3ECE5; border-top-left-radius: 24px; border-top-right-radius: 24px; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); overflow: hidden; }
+        .modal-overlay.show .action-sheet { transform: translateY(0); }
+        .action-btn { background-color: #F3ECE5; padding: 20px; text-align: center; font-size: 18px; font-weight: 500; color: #9C7C66; cursor: pointer; border-bottom: 1px solid rgba(156, 124, 102, 0.2); }
+        .action-btn:active { background-color: #E0D5CC; }
+        .action-btn.cancel { font-weight: 700; border-bottom: none; color: #8C735D; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+        
+        #loading-toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; padding: 15px 25px; border-radius: 25px; font-size: 14px; z-index: 300; display: none; }
+    
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <a href="profile.html" target="_top" style="text-decoration: none;"><div class="brown-btn avatar-placeholder"></div></a>
+        <div class="brown-btn search-pill">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        </div>
+        <a href="message.html" target="_top" class="brown-btn chat-btn" style="text-decoration: none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </a>
+    </div>
+    <div class="c">
+        <div class="content">
+            <div class="card">
+                <img id="displayImg" src="https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=2070&auto=format&fit=crop" alt="Display">
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <a href="search.html" target="_top" style="text-decoration: none; display: flex;"><svg class="icon-brown" width="32" height="32" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></a>
+        <div class="shutter-btn"><div class="shutter-inner"></div></div>
+        <a href="edit.html?from=home" target="_top" style="text-decoration: none; display: flex;"><svg class="icon-brown" width="32" height="32" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg></a>
+    </div>
+
+    <input type="file" id="input_camera" accept="image/*" capture="environment" style="display: none;">
+    <input type="file" id="input_gallery" accept="image/*" multiple style="display: none;">
+
+    <div id="action-sheet-overlay" class="modal-overlay">
+        <div class="action-sheet">
+            <div class="action-btn" id="btn_camera">立即拍照</div>
+            <div class="action-btn" id="btn_gallery">從相簿選擇</div>
+            <div class="action-btn cancel" id="btn_cancel">取消</div>
+        </div>
+    </div>
+    
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        // --- 1. 全域變數與初始化 ---
+        const dbName = DB_CONFIG.name;
+        const dbVersion = DB_CONFIG.version;
+        const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, ''); // 確保結尾沒有斜線
+
+        const channel = new BroadcastChannel('memory_update');
+        let db;
+
+        // 2. 資料庫初始化 (IndexedDB)
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, dbVersion);
+
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    console.log("🛠️ 正在更新資料庫結構...");
+                    const stores = ["posts", "users", "posts_timeline", "user_profile"];
+                    stores.forEach(store => {
+                        if (!database.objectStoreNames.contains(store)) {
+                            database.createObjectStore(store, { keyPath: "id" });
+                        }
+                    });
+                };
+
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    console.log("✅ IndexedDB 已連線");
+                    resolve(db);
+                };
+
+                request.onerror = (e) => {
+                    console.error("❌ DB開啟失敗:", e.target.error);
+                    reject(e.target.error);
+                };
+            });
+        }
+
+        // 3. 核心功能：載入最新照片 (對接 FastAPI)
+        async function loadLatestPhoto() {
+            const imgElement = document.getElementById('displayImg');
+            if (!imgElement) return;
+
+            let latestPost = null;
+
+            try {
+                const myEmail = localStorage.getItem('myProfileEmail');
+                if (!myEmail) return;
+
+                // [1] 嘗試從 API 抓取
+                const response = await fetch(`${API_BASE_URL}/get_memories?email=${myEmail}&t=${Date.now()}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    const posts = Array.isArray(result) ? result : (result.data || []);
+                    if (posts.length > 0) {
+                        latestPost = posts.sort((a, b) => b.timestamp - a.timestamp)[0];
+                    }
+                }
+            } catch (e) {
+                console.warn("⚠️ API 抓取失敗，準備嘗試本地備案:", e);
+            }
+
+            // [2] 本地備案：如果 API 沒抓到，從 IndexedDB 抓
+            if (!latestPost && db) {
+                try {
+                    const tx = db.transaction("posts_timeline", "readonly");
+                    const store = tx.objectStore("posts_timeline");
+                    const allPosts = await new Promise(res => {
+                        store.getAll().onsuccess = (e) => res(e.target.result || []);
+                    });
+                    if (allPosts.length > 0) {
+                        latestPost = allPosts.sort((a, b) => b.timestamp - a.timestamp)[0];
+                    }
+                } catch (dbErr) {
+                    console.error("❌ 本地資料庫讀取失敗:", dbErr);
+                }
+            }
+
+            // [3] 渲染大圖
+            if (latestPost) {
+                let photoUrl = latestPost.imageUrls ? latestPost.imageUrls[0] : (latestPost.url || latestPost.imageUrl);
+                if (photoUrl) {
+                    const tempImg = new Image();
+                    tempImg.src = photoUrl;
+                    tempImg.onload = () => {
+                        imgElement.src = photoUrl;
+                        imgElement.style.opacity = "1";
+                    };
+                    return;
+                }
+            }
+
+            // [4] 無資料處理：顯示預設圖
+            imgElement.src = "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=2070&auto=format&fit=crop";
+            console.log("ℹ️ 無貼文資料，已顯示預設封面圖");
+        }
+
+        // 4. 使用者頭像載入 (整合 API 同步版)
+        async function loadUserProfile() {
+            const avatarDiv = document.querySelector('.avatar-placeholder');
+            if (!avatarDiv) return;
+
+            const avatarUrl = getStoredAvatarUrl();
+            applyAvatarBackground(avatarDiv, avatarUrl);
+        }
+
+        // 5. 檔案選擇與上傳邏輯
+        const shutterBtn = document.querySelector('.shutter-btn');
+        const actionOverlay = document.getElementById('action-sheet-overlay');
+
+        if (shutterBtn) {
+            shutterBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                actionOverlay.classList.add('show');
+            });
+        }
+
+        document.getElementById('btn_cancel')?.addEventListener('click', () => actionOverlay.classList.remove('show'));
+        document.getElementById('btn_camera')?.addEventListener('click', () => document.getElementById('input_camera').click());
+        document.getElementById('btn_gallery')?.addEventListener('click', () => document.getElementById('input_gallery').click());
+
+        async function handleFileSelect(e) {
+            actionOverlay.classList.remove('show');
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            const toast = document.getElementById('loading-toast');
+            if (toast) {
+                toast.style.display = 'block';
+                toast.textContent = "Uploading...";
+            }
+
+            const formData = new FormData();
+            const myEmail = localStorage.getItem('myProfileEmail') || '';
+            
+            // 支援多圖或單圖上傳
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            formData.append('email', myEmail);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/upload_memory_post`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    if (toast) toast.textContent = "Uploaded!";
+                    // 重要：發送跨頁面更新通知
+                    channel.postMessage({ action: 'updated' });
+                    
+                    // 清除 input
+                    e.target.value = "";
+
+                    // 延遲更新 UI，給後端一點寫入時間
+                    setTimeout(async () => {
+                        await loadLatestPhoto();
+                        if (toast) toast.style.display = 'none';
+                    }, 1000);
+                } else {
+                    throw new Error(result.detail || "上傳失敗");
+                }
+            } catch (err) {
+                console.error("上傳錯誤:", err);
+                alert("錯誤: " + err.message);
+                if (toast) toast.style.display = 'none';
+            }
+        }
+
+        document.getElementById('input_camera')?.addEventListener('change', handleFileSelect);
+        document.getElementById('input_gallery')?.addEventListener('change', handleFileSelect);
+
+        // 6. 跨頁面通訊監聽
+        channel.onmessage = (event) => {
+            if (event.data === 'updated' || event.data.action === 'updated') {
+                loadLatestPhoto();
+                loadUserProfile();
+            }
+        };
+
+        // 7. 啟動
+        window.addEventListener('load', () => {
+            initDB().then(() => {
+                loadUserProfile();
+                loadLatestPhoto();
+            });
+        });
+    </script>
+</body>
+</html>
+
+

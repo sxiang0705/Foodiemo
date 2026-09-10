@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Social</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body {
+            min-height: 100vh;
+            background: #f3ece5;
+            color: #4d3f36;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow-y: auto;
+        }
+        body::-webkit-scrollbar { display: none; }
+        .screen {
+            width: 100%;
+            max-width: 430px;
+            margin: 0 auto;
+            min-height: 100vh;
+            padding: 24px 0 96px;
+        }
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 18px;
+            padding: 0 18px;
+        }
+        .tab-btn {
+            position: relative;
+            border: none;
+            background: none;
+            color: #b6a59a;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 8px 0 12px;
+            cursor: pointer;
+        }
+        .tab-btn.active { color: #7a6557; }
+        .tab-btn.active::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 3px;
+            border-radius: 999px;
+            background: #94755f;
+        }
+        .feed-panel { display: none; }
+        .feed-panel.active { display: block; }
+        .post-card { width: 100%; }
+        .post-header {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 10px 12px 12px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #9c7c66;
+            flex-shrink: 0;
+        }
+        .meta { min-width: 0; }
+        .username {
+            font-size: 12px;
+            font-weight: 700;
+            color: #4c3d34;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .subline {
+            margin-top: 2px;
+            font-size: 10px;
+            color: #a59286;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .more-btn {
+            border: none;
+            background: none;
+            color: #6d5d51;
+            font-size: 20px;
+            line-height: 1;
+            padding: 2px 6px;
+            cursor: pointer;
+        }
+        .popup-menu {
+            display: none;
+            position: absolute;
+            top: 34px;
+            right: 0;
+            min-width: 138px;
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+            z-index: 10;
+        }
+        .popup-menu.show { display: block; }
+        .menu-item {
+            width: 100%;
+            border: none;
+            background: #fff;
+            text-align: left;
+            padding: 11px 12px;
+            font-size: 12px;
+            color: #5c4b41;
+            cursor: pointer;
+        }
+        .menu-item + .menu-item { border-top: 1px solid rgba(0, 0, 0, 0.05); }
+        .menu-item.delete { color: #cc5961; font-weight: 700; }
+        .menu-item.locked { color: #b19e92; }
+        .media-container {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background: #ddd2c8;
+            overflow: hidden;
+            position: relative;
+        }
+        .slider {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .slider::-webkit-scrollbar { display: none; }
+        .slide {
+            flex: 0 0 100%;
+            width: 100%;
+            height: 100%;
+            scroll-snap-align: start;
+        }
+        .slide img { width: 100%; height: 100%; display: block; object-fit: cover; }
+        .image-counter {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.52);
+            color: #fff;
+            font-size: 11px;
+        }
+        .post-body { padding: 10px 12px 0; }
+        .actions { display: flex; align-items: center; gap: 12px; }
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border: none;
+            background: none;
+            color: #44372f;
+            cursor: pointer;
+            padding: 0;
+        }
+        .icon-btn svg { width: 22px; height: 22px; }
+        .like-count { font-size: 12px; color: #4f4137; }
+        .rating { margin-top: 8px; font-size: 12px; color: #d8a427; }
+        .caption { margin-top: 8px; font-size: 12px; line-height: 1.55; color: #5a4b42; }
+        .date { display: block; margin-top: 8px; font-size: 10px; color: #b2a197; }
+        .empty-state { padding: 56px 18px; text-align: center; color: #a19084; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="screen">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="mine">&#25105;&#30340;&#31038;&#32676;</button>
+            <button class="tab-btn" data-tab="discover">&#39187;&#20320;&#25512;&#34214;</button>
+        </div>
+
+        <section class="feed-panel active" id="minePanel">
+            <div id="mineFeed" class="post-card">
+                <div class="empty-state">&#30446;&#21069;&#36996;&#27794;&#26377;&#20320;&#30340;&#31038;&#32676;&#36028;&#25991;</div>
+            </div>
+        </section>
+
+        <section class="feed-panel" id="discoverPanel">
+            <div id="discoverFeed" class="post-card">
+                <div class="empty-state">&#30446;&#21069;&#36996;&#27794;&#26377;&#25512;&#34214;&#36028;&#25991;</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        const TEXT = {
+            myHandle: "@\u6211\u7684\u793e\u7fa4",
+            emptyMine: "\u76ee\u524d\u9084\u6c92\u6709\u4f60\u7684\u793e\u7fa4\u8cbc\u6587",
+            emptyDiscover: "\u76ee\u524d\u9084\u6c92\u6709\u63a8\u85a6\u8cbc\u6587",
+            menuEdit: "\u7de8\u8f2f",
+            menuReport: "\u6aa2\u8209",
+            menuDelete: "\u522a\u9664",
+            menuCollab: "\u5171\u540c\u7de8\u8f2f",
+            menuCollabPremium: "\u5171\u540c\u7de8\u8f2f\uff08\u6703\u54e1\uff09",
+            likesSuffix: " likes",
+            discoverReadOnly: "\u63a8\u85a6\u8cbc\u6587\u76ee\u524d\u53ea\u958b\u653e\u700f\u89bd\u8207\u6309\u8b9a\u3002",
+            reportedMine: "\u5df2\u6536\u5230\u9019\u7bc7\u8cbc\u6587\u7684\u6aa2\u8209\u3002",
+            reportedDiscover: "\u5df2\u6536\u5230\u9019\u7bc7\u63a8\u85a6\u8cbc\u6587\u7684\u6aa2\u8209\u3002",
+            collabMine: "\u5171\u540c\u7de8\u8f2f\u529f\u80fd\u5df2\u958b\u555f\uff0c\u4e4b\u5f8c\u53ef\u9080\u8acb\u670b\u53cb\u4e00\u8d77\u6574\u7406\u4f60\u7684\u793e\u7fa4\u8cbc\u6587\u3002",
+            collabDiscover: "\u5171\u540c\u7de8\u8f2f\u529f\u80fd\u5df2\u958b\u555f\uff0c\u4e4b\u5f8c\u53ef\u9080\u8acb\u670b\u53cb\u4e00\u8d77\u6574\u7406\u63a8\u85a6\u8cbc\u6587\u3002",
+            deleteConfirm: "\u78ba\u5b9a\u8981\u522a\u9664\u9019\u7bc7\u8cbc\u6587\u55ce\uff1f",
+            deleteFailed: "\u522a\u9664\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002",
+            feedLoadFailed: "\u8b80\u53d6\u6211\u7684\u793e\u7fa4\u8cbc\u6587\u5931\u6557",
+            ratingLabel: "Rating "
+        };
+
+        const API_BASE_URL = (window.DB_CONFIG && DB_CONFIG.apiUrl)
+            ? DB_CONFIG.apiUrl.replace(/\/$/, "")
+            : "http://127.0.0.1:8001/api";
+
+        const channel = new BroadcastChannel("memory_update");
+        const tabs = Array.from(document.querySelectorAll(".tab-btn"));
+        const minePanel = document.getElementById("minePanel");
+        const discoverPanel = document.getElementById("discoverPanel");
+        const mineFeed = document.getElementById("mineFeed");
+        const discoverFeed = document.getElementById("discoverFeed");
+
+        let myPosts = [];
+        let discoverPosts = [];
+        let menuTimer = null;
+
+        const icons = {
+            more: "...",
+            heartOutline: '<svg viewBox="0 0 24 24" fill="none" stroke="#3f332c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>',
+            heartFilled: '<svg viewBox="0 0 24 24" fill="#df7076" stroke="#df7076" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>',
+            comment: '<svg viewBox="0 0 24 24" fill="none" stroke="#3f332c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>'
+        };
+
+        const discoverTemplates = [
+            {
+                username: "\u6885\u7279\u5927\u80c3\u738b",
+                handle: "@\u53f0\u5317\u7528\u9910 \u00b7 \u7f8e\u98df\u5c0f\u968a",
+                caption: "\u9031\u672b\u5728\u5c45\u9152\u5c4b\u5403\u5230\u5f88\u559c\u6b61\u7684\u4e32\u71d2\u548c\u70b8\u7269\uff0c\u6574\u9ad4\u6c23\u6c1b\u5f88\u597d\uff0c\u9069\u5408\u670b\u53cb\u4e00\u8d77\u805a\u9910\u3002",
+                location: "\u5357\u4eac\u5fa9\u8208",
+                likes: 120,
+                rating: 4.8,
+                images: ["IMG_6654.jpg", "IMG_6481.jpg"],
+                date: "2026/4/16"
+            },
+            {
+                username: "\u665a\u9910\u6563\u6b65\u4e2d",
+                handle: "@\u65b0\u5317\u63a2\u5e97 \u00b7 \u65e5\u5e38\u8a18\u9304",
+                caption: "\u9019\u5bb6\u5496\u54e9\u98ef\u4efd\u91cf\u5f88\u5920\uff0c\u91ac\u6c41\u6fc3\u90c1\uff0c\u65c1\u908a\u7684\u5c0f\u83dc\u4e5f\u5f88\u52a0\u5206\uff0c\u6703\u60f3\u518d\u56de\u8a2a\u3002",
+                location: "\u677f\u6a4b",
+                likes: 87,
+                rating: 4.6,
+                images: ["IMG_3535.jpg", "IMG_3698.jpg"],
+                date: "2026/4/18"
+            },
+            {
+                username: "\u751c\u9ede\u6563\u7b56\u65e5",
+                handle: "@\u53f0\u4e2d\u751c\u9ede\u5730\u5716",
+                caption: "\u62b9\u8336\u548c\u7119\u8336\u7cfb\u5217\u90fd\u5f88\u7a69\uff0c\u751c\u5ea6\u4e0d\u6703\u592a\u9ad8\uff0c\u6574\u9ad4\u62cd\u8d77\u4f86\u4e5f\u5f88\u6709\u8cea\u611f\u3002",
+                location: "\u5be9\u8a08\u65b0\u6751",
+                likes: 164,
+                rating: 4.7,
+                images: ["IMG_6433.jpg", "IMG_6398.jpg"],
+                date: "2026/4/20"
+            }
+        ];
+
+        function isPremiumUser() {
+            return localStorage.getItem("isPremiumUser") === "true";
+        }
+
+        function redirectToPayment() {
+            window.top.location.href = "payment.html?from=social&t=" + Date.now();
+        }
+
+        function getAvatar(url) {
+            return normalizeAvatarUrl(url || getStoredAvatarUrl());
+        }
+
+        function setActiveTab(tab) {
+            tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
+            minePanel.classList.toggle("active", tab === "mine");
+            discoverPanel.classList.toggle("active", tab === "discover");
+        }
+
+        function makeDiscoverPosts() {
+            discoverPosts = [...discoverTemplates]
+                .sort(() => Math.random() - 0.5)
+                .map((item, index) => ({
+                    id: "discover-" + (index + 1),
+                    username: item.username,
+                    handle: item.handle,
+                    caption: item.caption,
+                    location: item.location,
+                    likes: item.likes,
+                    rating: item.rating,
+                    imageUrls: item.images,
+                    userAvatar: DEFAULT_AVATAR_URL,
+                    date: item.date,
+                    isLiked: false
+                }));
+        }
+
+        function normalizeMinePosts(posts) {
+            const myName = localStorage.getItem("myProfileName") || "User";
+            const myAvatar = getStoredAvatarUrl();
+            myPosts = (posts || []).map((post) => ({
+                ...post,
+                username: post.username || myName,
+                handle: TEXT.myHandle,
+                userAvatar: getAvatar(post.userAvatar || post.avatar_url || myAvatar),
+                imageUrls: Array.isArray(post.imageUrls) ? post.imageUrls : [post.url].filter(Boolean),
+                likes: typeof post.likes === "number" ? post.likes : 0,
+                isLiked: !!post.isLiked
+            }));
+        }
+
+        function getMenu(feedType, postId) {
+            const premiumItem = isPremiumUser()
+                ? `<button class="menu-item" onclick="window.collabEdit(event, '${postId}', ${feedType === "discover"})">${TEXT.menuCollab}</button>`
+                : `<button class="menu-item locked" onclick="window.goPremium(event)">${TEXT.menuCollabPremium}</button>`;
+
+            if (feedType === "mine") {
+                return `
+                    <button class="menu-item" onclick="window.editPost(event, '${postId}')">${TEXT.menuEdit}</button>
+                    <button class="menu-item" onclick="window.reportPost(event, '${postId}', 'mine')">${TEXT.menuReport}</button>
+                    ${premiumItem}
+                    <button class="menu-item delete" onclick="window.deletePost(event, '${postId}')">${TEXT.menuDelete}</button>
+                `;
+            }
+
+            return `
+                <button class="menu-item" onclick="window.reportPost(event, '${postId}', 'discover')">${TEXT.menuReport}</button>
+                ${premiumItem}
+            `;
+        }
+
+        function renderPost(post, feedType) {
+            const images = Array.isArray(post.imageUrls) ? post.imageUrls : [];
+            const key = feedType + "-" + post.id;
+            const imageHtml = images.map((src) => `
+                <div class="slide">
+                    <img src="${src}" alt="${post.username}" onerror="this.src='IMG_1940.jpg'">
+                </div>
+            `).join("");
+
+            return `
+                <div class="post-header">
+                    <div class="user-info">
+                        <img src="${getAvatar(post.userAvatar)}" class="avatar" onerror="this.src=window.DEFAULT_AVATAR_URL">
+                        <div class="meta">
+                            <div class="username">${post.username}</div>
+                            <div class="subline">${post.handle || ""}${post.location ? " - " + post.location : ""}</div>
+                        </div>
+                    </div>
+                    <button class="more-btn" onclick="window.toggleMenu(event, '${key}')">${icons.more}</button>
+                    <div id="menu-${key}" class="popup-menu" onclick="event.stopPropagation()">
+                        ${getMenu(feedType, post.id)}
+                    </div>
+                </div>
+                <div class="media-container">
+                    <div class="slider" id="slider-${key}" onscroll="window.updateCounter('${key}')">
+                        ${imageHtml}
+                    </div>
+                    ${images.length > 1 ? `<div class="image-counter" id="counter-${key}">1/${images.length}</div>` : ""}
+                </div>
+                <div class="post-body">
+                    <div class="actions">
+                        <button class="icon-btn" onclick="window.toggleLike('${feedType}', '${post.id}')">
+                            <span id="like-${key}">${post.isLiked ? icons.heartFilled : icons.heartOutline}</span>
+                        </button>
+                        <span class="like-count" id="likes-${key}">${post.likes}${TEXT.likesSuffix}</span>
+                        <button class="icon-btn" onclick="window.openComments('${post.id}', '${feedType}')">${icons.comment}</button>
+                    </div>
+                    ${typeof post.rating === "number" ? `<div class="rating">${TEXT.ratingLabel}${post.rating.toFixed(1)}</div>` : ""}
+                    <div class="caption">${post.caption || ""}</div>
+                    <span class="date">${post.date || new Date(post.timestamp || Date.now()).toLocaleDateString()}</span>
+                </div>
+            `;
+        }
+
+        function renderFeed(target, posts, feedType) {
+            if (!posts.length) {
+                target.innerHTML = `<div class="empty-state">${feedType === "mine" ? TEXT.emptyMine : TEXT.emptyDiscover}</div>`;
+                return;
+            }
+
+            target.innerHTML = posts.map((post) => `<article class="post-card">${renderPost(post, feedType)}</article>`).join("");
+        }
+
+        async function loadMineFeed() {
+            const email = localStorage.getItem("myProfileEmail");
+            if (!email) {
+                myPosts = [];
+                renderFeed(mineFeed, myPosts, "mine");
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE_URL + "/get_memories?email=" + encodeURIComponent(email) + "&t=" + Date.now());
+                const result = await response.json();
+                normalizeMinePosts(Array.isArray(result) ? result : (result.data || []));
+            } catch (error) {
+                console.error(TEXT.feedLoadFailed, error);
+                myPosts = [];
+            }
+
+            renderFeed(mineFeed, myPosts, "mine");
+        }
+
+        window.updateCounter = function(key) {
+            const slider = document.getElementById("slider-" + key);
+            const counter = document.getElementById("counter-" + key);
+            if (!slider || !counter) return;
+            const index = Math.round(slider.scrollLeft / slider.offsetWidth) + 1;
+            counter.textContent = index + "/" + slider.children.length;
+        };
+
+        window.toggleMenu = function(event, key) {
+            event.stopPropagation();
+            if (menuTimer) clearTimeout(menuTimer);
+            const menu = document.getElementById("menu-" + key);
+            document.querySelectorAll(".popup-menu").forEach((item) => {
+                if (item !== menu) item.classList.remove("show");
+            });
+            if (menu) {
+                menu.classList.toggle("show");
+                if (menu.classList.contains("show")) {
+                    menuTimer = setTimeout(() => menu.classList.remove("show"), 2600);
+                }
+            }
+        };
+
+        window.toggleLike = function(feedType, postId) {
+            const list = feedType === "mine" ? myPosts : discoverPosts;
+            const post = list.find((item) => String(item.id) === String(postId));
+            if (!post) return;
+            post.isLiked = !post.isLiked;
+            post.likes += post.isLiked ? 1 : -1;
+            document.getElementById("like-" + feedType + "-" + postId).innerHTML = post.isLiked ? icons.heartFilled : icons.heartOutline;
+            document.getElementById("likes-" + feedType + "-" + postId).textContent = post.likes + TEXT.likesSuffix;
+        };
+
+        window.openComments = function(postId, feedType) {
+            if (feedType === "discover") {
+                alert(TEXT.discoverReadOnly);
+                return;
+            }
+            window.top.location.href = "comments.html?id=" + postId + "&v=" + Date.now();
+        };
+
+        window.editPost = function(event, postId) {
+            event.stopPropagation();
+            window.top.location.href = "edit.html?id=" + postId + "&from=social";
+        };
+
+        window.reportPost = function(event, postId, feedType) {
+            event.stopPropagation();
+            alert(feedType === "mine" ? TEXT.reportedMine : TEXT.reportedDiscover);
+        };
+
+        window.goPremium = function(event) {
+            event.stopPropagation();
+            redirectToPayment();
+        };
+
+        window.collabEdit = function(event, postId, isDiscover) {
+            event.stopPropagation();
+            if (!isPremiumUser()) {
+                redirectToPayment();
+                return;
+            }
+            alert(isDiscover ? TEXT.collabDiscover : TEXT.collabMine);
+        };
+
+        window.deletePost = async function(event, postId) {
+            event.stopPropagation();
+            const email = localStorage.getItem("myProfileEmail");
+            const post = myPosts.find((item) => String(item.id) === String(postId));
+            if (!email || !post) return;
+            if (!confirm(TEXT.deleteConfirm)) return;
+
+            try {
+                const firstUrl = Array.isArray(post.imageUrls) ? post.imageUrls[0] : post.url;
+                const response = await fetch(
+                    API_BASE_URL + "/delete_single_photo?post_id=" + encodeURIComponent(postId) + "&photo_url=" + encodeURIComponent(firstUrl) + "&email=" + encodeURIComponent(email),
+                    { method: "DELETE" }
+                );
+                if (!response.ok) throw new Error("delete failed");
+                myPosts = myPosts.filter((item) => String(item.id) !== String(postId));
+                renderFeed(mineFeed, myPosts, "mine");
+                channel.postMessage({ action: "updated" });
+            } catch (error) {
+                alert(TEXT.deleteFailed);
+            }
+        };
+
+        tabs.forEach((btn) => {
+            btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+        });
+
+        document.addEventListener("click", () => {
+            document.querySelectorAll(".popup-menu").forEach((menu) => menu.classList.remove("show"));
+        });
+
+        channel.onmessage = async (event) => {
+            if (event.data === "updated" || event.data?.action === "updated") {
+                await loadMineFeed();
+            }
+        };
+
+        async function init() {
+            makeDiscoverPosts();
+            renderFeed(discoverFeed, discoverPosts, "discover");
+            await loadMineFeed();
+            setActiveTab("mine");
+        }
+
+        init();
+    </script>
+</body>
+</html>

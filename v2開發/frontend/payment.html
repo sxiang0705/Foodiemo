@@ -1,0 +1,252 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Premium Subscription</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { 
+            background-color: #F3ECE5; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 20px; 
+            color: #6D5D50; 
+            overflow: hidden;
+            position: fixed;
+            /* ★ 加入這兩行來鎖死左右滑動 ★ */
+            overflow-x: hidden; 
+            width: 100%;
+        }
+
+        .card-container {
+            background: linear-gradient(135deg, #9C7C66, #6D5D50);
+            width: 100%; max-width: 350px; height: 200px;
+            border-radius: 20px; padding: 25px; color: white;
+            box-shadow: 0 10px 30px rgba(109, 93, 80, 0.3);
+            margin-bottom: 30px; position: relative;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        .chip { width: 40px; height: 30px; background: #e0d0c8; border-radius: 5px; opacity: 0.8; }
+        .card-number { font-size: 22px; letter-spacing: 2px; font-family: "Courier New", monospace; text-shadow: 0 2px 2px rgba(0,0,0,0.3); }
+        .card-details { display: flex; justify-content: space-between; font-size: 12px; text-transform: uppercase; opacity: 0.9; }
+        .card-name { font-weight: 600; font-size: 14px; }
+
+        .form-container { width: 100%; max-width: 350px; }
+        .input-group { margin-bottom: 15px; }
+        .label { font-size: 12px; font-weight: 700; margin-bottom: 5px; display: block; color: #8C7B6D; }
+        
+        input {
+            width: 100%; padding: 15px; border-radius: 12px;
+            border: 1px solid #ddd; background: white;
+            font-size: 16px; color: #333; outline: none;
+            transition: border 0.3s;
+        }
+        input:focus { border-color: #9C7C66; }
+
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+
+        .pay-btn {
+            width: 100%; padding: 18px; border: none; border-radius: 30px;
+            background-color: #9C7C66; color: white;
+            font-size: 16px; font-weight: 700; cursor: pointer;
+            margin-top: 20px; box-shadow: 0 5px 15px rgba(156, 124, 102, 0.3);
+            transition: transform 0.1s;
+        }
+        .pay-btn:active { transform: scale(0.98); }
+        
+        .cancel-link {
+            margin-top: 20px; color: #999; font-size: 14px; text-decoration: none; font-weight: 500;
+        }
+
+        /* 模擬載入動畫 */
+        .spinner {
+            display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-right: 10px; display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="card-container">
+        <div class="chip"></div>
+        <div class="card-number">•••• •••• •••• ••••</div>
+        <div class="card-details">
+            <div>
+                <span>Card Holder</span>
+                <div class="card-name">YOUR NAME</div>
+            </div>
+            <div>
+                <span>Expires</span>
+                <div class="card-name">MM/YY</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-container">
+        <div class="input-group">
+            <span class="label">CARD NUMBER</span>
+            <input type="tel" placeholder="0000 0000 0000 0000" maxlength="19" id="inputCard">
+        </div>
+        
+        <div class="input-group">
+            <span class="label">CARD HOLDER</span>
+            <input type="text" placeholder="Name on card">
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <span class="label">EXPIRY DATE</span>
+                <input type="tel" placeholder="MM/YY" maxlength="5">
+            </div>
+            <div class="col">
+                <span class="label">CVV</span>
+                <input type="tel" placeholder="123" maxlength="3">
+            </div>
+        </div>
+
+        <button class="pay-btn" id="payBtn">
+            <div class="spinner" id="spinner"></div>
+            <span id="btnText">Pay $9.99 / Month</span>
+        </button>
+    </div>
+
+    <a href="#" target="_top" class="cancel-link" id="cancelLink">Cancel</a>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        // --- 1. 配置與初始化 ---
+        const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, '');
+
+        // 🌟 強力跳轉邏輯：精準回歸來源頁
+        function forceNavigateBack() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const source = urlParams.get('from'); 
+            
+            // 取得當前根目錄路徑，確保跳轉不會因為路徑問題失效
+            const baseUrl = window.location.origin + window.location.pathname.rsplit('/', 1)[0];
+
+            let targetUrl = "";
+
+            if (source === 'social') {
+                // 如果是從 Social 來的，強制回 Index 並指定 tab (保持 PWA 殼層)
+                targetUrl = "index.html?tab=social";
+            } else if (source === 'profile') {
+                // 如果是從 Profile 來的，精準回到 profile.html
+                targetUrl = "profile.html"; 
+            } else {
+                // 預設保險路徑
+                targetUrl = "index.html";
+            }
+
+            console.log("🚀 執行強力導航回歸：", targetUrl);
+
+            // 1. 通知父層解鎖 (非常重要)
+            window.parent.postMessage('unlockSwiping', '*');
+
+            // 2. 使用 top.location 直接覆蓋整個瀏覽器網址列，並加上 timestamp 防止快取
+            const finalUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+            
+            // 3. 強制跳轉
+            window.top.location.href = finalUrl;
+        }
+
+        // 輔助函式：處理路徑
+        String.prototype.rsplit = function(sep, maxsplit) {
+            var split = this.split(sep);
+            return maxsplit ? [ split.slice(0, -maxsplit).join(sep), split.slice(-maxsplit).join(sep) ] : split;
+        }
+        // --- 2. 輸入框 UI 互動邏輯 ---
+
+        const inputCard = document.getElementById('inputCard');
+        const inputExpiry = document.querySelector('input[placeholder="MM/YY"]');
+        const inputCvv = document.querySelector('input[placeholder="123"]');
+        const cardDisplay = document.querySelector('.card-number');
+
+        // 卡號格式化 (0000 0000 0000 0000)
+        inputCard.addEventListener('input', e => {
+            let v = e.target.value.replace(/\D/g, '').substring(0, 16);
+            let formatted = v.match(/.{1,4}/g)?.join(' ') || v;
+            e.target.value = formatted;
+            cardDisplay.textContent = formatted || "•••• •••• •••• ••••";
+        });
+
+        // 到期日格式化 (MM/YY)
+        inputExpiry.addEventListener('input', e => {
+            let v = e.target.value.replace(/\D/g, '').substring(0, 4);
+            if (v.length >= 3) {
+                e.target.value = v.substring(0, 2) + '/' + v.substring(2);
+            } else {
+                e.target.value = v;
+            }
+        });
+
+        // CVV 限制數字
+        inputCvv.addEventListener('input', e => {
+            e.target.value = e.target.value.replace(/\D/g, '').substring(0, 3);
+        });
+
+        // 取消按鈕
+        cancelLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            forceNavigateBack();
+        });
+
+        // --- 3. 付款點擊 ---
+        payBtn.addEventListener('click', async function() {
+            const email = localStorage.getItem('myProfileEmail');
+            if (!email) return alert("請先登入");
+
+            // UI 狀態：顯示載入中
+            document.getElementById('spinner').style.display = 'inline-block';
+            document.getElementById('btnText').innerText = "Processing...";
+            payBtn.disabled = true;
+
+            try {
+                // 發送升級 VIP 請求
+                const response = await fetch(`${API_BASE_URL}/upgrade_premium?email=${email}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && (result.status === "success" || result.is_vip === true)) {
+                    localStorage.setItem('isPremiumUser', 'true');
+                    
+                    const channel = new BroadcastChannel('memory_update');
+                    channel.postMessage('updated');
+
+                    alert("Payment Successful! You are now a Premium Member.");
+                    
+                    // 執行精準導航回歸
+                    forceNavigateBack(); 
+                } else {
+                    alert("Payment Failed: " + (result.detail || "Unknown error"));
+                }
+            } catch (err) {
+                console.error("Payment Error:", err);
+                alert("Network error, please try again.");
+            } finally {
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('btnText').innerText = "Pay $9.99 / Month";
+                payBtn.disabled = false;
+            }
+        });
+
+        // 取消連結
+        document.getElementById('cancelLink').addEventListener('click', (e) => {
+            e.preventDefault();
+            forceNavigateBack();
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,495 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Profile</title>
+    <style>
+        /* --- 全局設定 --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; outline: none;}
+
+        html {
+            width: 100%;
+            overflow-x: hidden;
+        }
+        
+        body { 
+            background-color: #F0EAE4; 
+            min-height: 100vh; /* 改成 min-height 確保可捲動 */
+            display: flex; 
+            flex-direction: column; 
+            position: relative;
+            overflow-y: auto; 
+            overflow-x: hidden;
+            width: 100%;
+            /* 避免某些系統鎖定滑動 */
+            touch-action: pan-y;
+        }
+
+        /* --- Header --- */
+        .header { 
+            flex-shrink: 0; 
+            height: 60px; 
+            padding: 0 24px; 
+            display: flex; 
+            align-items: center; 
+            margin-top: 40px; 
+        }
+        
+        .back-btn { 
+            width: 40px; height: 40px; 
+            background-color: rgba(0,0,0,0.05);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            text-decoration: none; color: #8C7B6D; 
+            transition: background 0.2s;
+        }
+        .back-btn:active { background-color: rgba(0,0,0,0.1); }
+        .back-btn svg { width: 20px; height: 20px; stroke-width: 2.5; }
+
+        /* --- 個人資料區塊 --- */
+        .profile-section { 
+            display: flex; flex-direction: column; align-items: center; 
+            margin-top: 20px; margin-bottom: 40px; 
+        }
+        
+        .avatar-container {
+            position: relative; margin-bottom: 16px; cursor: pointer;
+        }
+
+        .avatar { 
+            width: 100px; height: 100px; border-radius: 50%; 
+            background-color: #dbdbdb; /* 與主頁一致的灰色 */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            overflow: hidden; display: flex; justify-content: center; align-items: center;
+        }
+        
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .camera-badge {
+            position: absolute; bottom: 0; right: 0;
+            width: 32px; height: 32px;
+            background-color: #8C7B6D; 
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            border: 3px solid #F0EAE4; color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .camera-badge svg { width: 16px; height: 16px; }
+
+        /* ★ 配套措施 1：讓名字看起來像可以編輯的樣子 */
+        .name-wrapper {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+        }
+        
+        .username { 
+            font-size: 20px; font-weight: 600; color: #5D4D40; 
+            letter-spacing: 1px; text-transform: uppercase;
+            border-bottom: 1px dashed transparent; /* 預設隱藏底線 */
+            padding: 0 4px;
+            cursor: text;
+            min-width: 50px; text-align: center;
+        }
+        
+        /* 當點擊編輯時，顯示底線 */
+        .username:focus { border-bottom: 1px dashed #8C7B6D; }
+
+        .edit-icon { color: #998A7D; opacity: 0.5; pointer-events: none; }
+
+        .email { font-size: 13px; color: #998A7D; }
+
+        /* --- 選單列表 --- */
+        .menu-list { 
+            width: 100%; padding: 25px 40px; 
+            display: flex; flex-direction: column; gap: 25px; 
+        }
+        
+        .menu-item {
+            display: flex; align-items: center; gap: 16px;
+            cursor: pointer; background: transparent; padding: 5px 0; 
+            transition: opacity 0.2s;
+        }
+        .menu-item:active { opacity: 0.6; }
+
+        .menu-item.is-premiumUser .item-icon { stroke: #d32f2f; animation: ding 0.5s ease; }
+        .menu-item.is-premiumUser .item-text { color: #d32f2f; font-weight: 700; }
+        @keyframes ding { 0%{transform:rotate(0)} 20%{transform:rotate(15deg)} 40%{transform:rotate(-10deg)} 60%{transform:rotate(5deg)} 80%{transform:rotate(-5deg)} 100%{transform:rotate(0)} }
+
+        .item-icon { width: 24px; height: 24px; stroke: #8C7B6D; stroke-width: 1.8; }
+        .item-text { font-size: 16px; font-weight: 500; color: #6D5D50; }
+
+        /* --- 底部按鈕 --- */
+        .logout-container {
+            margin-top: auto; margin-bottom: 50px;
+            display: flex; justify-content: center; width: 100%; padding: 20px 0;
+        }
+
+        .logout-btn {
+            background-color: #C8B6A6; color: white;
+            border: none; width: 200px; padding: 14px 0;
+            border-radius: 12px; font-size: 16px; font-weight: 600;
+            cursor: pointer; box-shadow: 0 4px 10px rgba(140, 115, 93, 0.2);
+            transition: transform 0.1s;
+        }
+        .logout-btn:active { transform: scale(0.96); }
+
+        .debug-btn { position: absolute; bottom: 10px; right: 10px; border: none; background: none; color: #ccc; font-size: 10px; opacity: 0.5; }
+        #hiddenFileInput { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <a href="index.html" target="_top" class="back-btn"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </a>
+    </div>
+
+    <div class="profile-section">
+        <div class="avatar-container" onclick="triggerUpload()">
+            <div class="avatar" id="avatarDisplay"></div>
+            <div class="camera-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            </div>
+        </div>
+        
+        <input type="file" id="hiddenFileInput" accept="image/*">
+
+        <div class="name-wrapper">
+            <div class="username" id="username-field" contenteditable="true" onblur="saveName()">Me</div>
+            <svg class="edit-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </div>
+        
+        <div class="email" id="email-display">Loading...</div>
+    </div>
+
+    <div class="menu-list">
+        <div class="menu-item">
+            <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span class="item-text">My Profile</span>
+        </div>
+
+        <div class="menu-item" id="subscriptionRow" onclick="handleSubscription()">
+            
+            <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            
+            <span class="item-text" id="subText">Subscription</span>
+            
+        </div>
+
+        <div class="menu-item">
+            <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            <span class="item-text">Address</span>
+        </div>
+
+        <div class="menu-item">
+            <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            <span class="item-text">Contact Us</span>
+        </div>
+
+        <div class="menu-item">
+            <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span class="item-text">Setting</span>
+        </div>
+
+        <div class="menu-item">
+            <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span class="item-text">Help & QA</span>
+        </div>
+    </div>
+
+    <div class="logout-container">
+        <button class="logout-btn" onclick="logout()">Log Out</button>
+    </div>
+
+    <button class="debug-btn" onclick="resetMember()">[Reset]</button>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        // --- 1. 初始化與配置 ---
+        const dbName = DB_CONFIG.name;
+        const dbVersion = DB_CONFIG.version;
+        const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, '');
+        let db;
+
+        // 廣播頻道：當名字或頭像更換時，通知 social.html 即時更新
+        const channel = new BroadcastChannel('memory_update');
+
+        /**
+         * 初始化資料庫 (與 signup/comments 邏輯對齊)
+         */
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, dbVersion); 
+
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    console.log(`正在同步資料庫結構...`);
+
+                    // 1. 社交牆主表 (對接 social.html)
+                    if (!database.objectStoreNames.contains('posts_timeline')) {
+                        database.createObjectStore('posts_timeline', { keyPath: 'id' });
+                    }
+                    // 2. 個人資料表 (對接 profile.html)
+                    if (!database.objectStoreNames.contains('user_profile')) {
+                        database.createObjectStore('user_profile');
+                    }
+                };
+
+                request.onsuccess = (e) => { 
+                    db = e.target.result; 
+                    // 處理版本衝突
+                    db.onversionchange = () => {
+                        db.close();
+                        location.reload();
+                    };
+                    resolve(db); 
+                };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        // --- 2. 頁面載入邏輯 ---
+        const avatarDisplay = document.getElementById('avatarDisplay');
+        const usernameField = document.getElementById('username-field');
+        const fileInput = document.getElementById('hiddenFileInput');
+
+        window.addEventListener('load', async () => {
+            await initDB();
+
+            // 1. 讀取名字
+            const savedName = localStorage.getItem('myProfileName');
+            if (savedName && usernameField) {
+                usernameField.innerText = savedName;
+            }
+
+            // 2. 讀取 Email
+            const savedEmail = localStorage.getItem('myProfileEmail');
+            const emailDiv = document.querySelector('.email'); 
+            if (savedEmail && emailDiv) {
+                emailDiv.innerText = savedEmail;
+            }
+
+            // 3. 載入頭像 (雲端優先，本地備份)
+            loadAvatar();
+
+            // 4. 檢查 VIP 狀態
+            checkStatus();
+        });
+
+        /**
+         * 載入頭像邏輯
+         */
+        async function loadAvatar() {
+            // 確保 db 已經初始化
+            if (!db) await initDB(); 
+
+            const remoteUrl = localStorage.getItem('myProfileAvatar') || localStorage.getItem('avatar_url');
+            if (remoteUrl) {
+                avatarDisplay.innerHTML = `<img src="${normalizeAvatarUrl(remoteUrl)}" alt="Profile">`;
+                return;
+            }
+
+            // 離線模式讀取
+            try {
+                const tx = db.transaction("user_profile", "readonly");
+                const store = tx.objectStore("user_profile");
+                const req = store.get("avatar"); 
+                
+                req.onsuccess = (e) => {
+                    const result = e.target.result;
+                    if (result) {
+                        const url = (result instanceof Blob || result instanceof File) 
+                                    ? URL.createObjectURL(result) 
+                                    : result;
+                        avatarDisplay.innerHTML = `<img src="${url}" alt="Profile">`;
+                    } else {
+                        avatarDisplay.innerHTML = `<img src="${DEFAULT_AVATAR_URL}" alt="Profile">`;
+                    }
+                };
+            } catch (e) {
+                console.warn("目前無法讀取本地頭像快取");
+            }
+        }
+
+        /**
+         * 儲存名字 (失去焦點或按 Enter 時)
+         */
+        async function saveName() {
+            const newName = usernameField.innerText.trim();
+            const finalName = newName || "Me";
+            const email = localStorage.getItem('myProfileEmail');
+            
+            // 1. 立即更新本地 UI 與快取
+            usernameField.innerText = finalName;
+            localStorage.setItem('myProfileName', finalName);
+
+            // 2. 同步到本地資料庫 (供留言板即時抓取)
+            if (db) {
+                const tx = db.transaction("user_profile", "readwrite");
+                tx.objectStore("user_profile").put(finalName, "username");
+            }
+
+            // 3. 發送廣播通知其他分頁 (例如 Social 頁面)
+            channel.postMessage('updated');
+
+            // 4. 【核心補強】發送至後端永久儲存
+            if (email) {
+                try {
+                    const formData = new FormData();
+                    formData.append('email', email);
+                    formData.append('name', finalName);
+
+                    const response = await fetch(`${API_BASE_URL}/update_profile_name`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        console.log("✅ 後端名字更新成功");
+                    } else {
+                        console.error("❌ 後端名字更新失敗");
+                    }
+                } catch (err) {
+                    console.error("❌ 網路錯誤，名字僅儲存在本地:", err);
+                }
+            }
+        }
+
+        /**
+         * 頭像上傳邏輯
+         */
+        function triggerUpload() { fileInput.click(); }
+
+        fileInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 1. 立即預覽
+            const previewUrl = URL.createObjectURL(file);
+            avatarDisplay.innerHTML = `<img src="${previewUrl}" alt="Profile">`;
+            avatarDisplay.style.opacity = '0.5';
+
+            // 2. 獲取 Email (確保有拿到)
+            const email = localStorage.getItem('myProfileEmail');
+            if (!email) {
+                alert("找不到登入資訊，請重新登入");
+                window.top.location.href = "login.html";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);   // 對應後端 file: UploadFile
+            formData.append('email', email); // 對應後端 email: str
+
+            try {
+                console.log("正在發送請求至:", `${API_BASE_URL}/upload_avatar`);
+                const response = await fetch(`${API_BASE_URL}/upload_avatar`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                console.log("後端回傳結果:", data);
+
+                if (data.success || data.status === 'success') {
+                    // 🌟 修正點：統一存入 myProfileAvatar，這樣 home.html 才抓得到
+                    const finalAvatarUrl = data.avatar_url;
+                    window.userAvatarUrl = normalizeAvatarUrl(finalAvatarUrl);
+                    setStoredAvatarUrl(finalAvatarUrl);
+
+                    // 3. 同時存入 IndexedDB 備份
+                    const tx = db.transaction("user_profile", "readwrite");
+                    tx.objectStore("user_profile").put(file, "avatar"); 
+                    
+                    // 4. 通知其他頁面 (Home 頁面會收到訊號並刷新)
+                    channel.postMessage('updated'); 
+                    
+                    alert("✅ 頭像上傳成功！");
+                } else {
+                    alert("❌ 上傳失敗: " + (data.detail || "未知錯誤"));
+                }
+            } catch (err) {
+                console.error("❌ 網路請求錯誤:", err);
+                alert("無法連線至伺服器，請檢查後端是否啟動");
+            } finally {
+                avatarDisplay.style.opacity = '1';
+            }
+        });
+
+        /**
+         * 檢查 VIP 狀態
+         */
+        async function checkStatus() {
+            const email = localStorage.getItem('myProfileEmail');
+            const row = document.getElementById('subscriptionRow');
+            const text = document.getElementById('subText');
+            if (!email) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/check_vip/${email}`);
+                const data = await response.json();
+                const isVip = data.is_vip;
+
+                localStorage.setItem('isPremiumUser', isVip.toString());
+
+                if (isVip) {
+                    row.classList.add('is-premiumUser');
+                    text.textContent = "Subscription (Active)";
+                } else {
+                    row.classList.remove('is-premiumUser');
+                    text.textContent = "Subscription";
+                }
+            } catch (error) {
+                console.error("連線失敗，讀取本地狀態");
+                if (localStorage.getItem('isPremiumUser') === 'true') {
+                    row.classList.add('is-premiumUser');
+                }
+            }
+        }
+
+        // --- 跳轉與登出 ---
+        function handleSubscription() {
+            if (localStorage.getItem('isPremiumUser') !== 'true') {
+                window.top.location.href = "payment.html?from=profile";
+            }
+        }
+
+        async function resetMember() {
+            if(confirm("確定要重置所有資料並登出嗎？")) {
+                await fetch(`${API_BASE_URL}/logout`, { method: 'POST' }).catch(() => null);
+                await clearLocalAppData();
+                window.top.location.href = "login.html";
+            }
+        }
+
+        async function logout() {
+            if(!confirm('Are you sure you want to log out?')) return;
+
+            try {
+                console.log("👋 執行登出程序...");
+
+                // 1. 先通知後端清掉登入 Cookie
+                await fetch(`${API_BASE_URL}/logout`, { method: 'POST' }).catch(() => null);
+
+                // 2. 嘗試關閉資料庫，再清空本機資料
+                if (db) {
+                    db.close();
+                }
+                await clearLocalAppData();
+                console.log("✅ 本機資料已清空");
+                window.top.location.href = "login.html";
+
+            } catch (e) {
+                console.error("登出時發生錯誤:", e);
+                await clearLocalAppData().catch(() => localStorage.clear());
+                window.top.location.href = "login.html";
+            }
+        }
+    </script>
+</body>
+</html>
+
+

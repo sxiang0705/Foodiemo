@@ -1,0 +1,273 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Comments</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
+        body { 
+            background-color: white; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            color: #262626; 
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: fixed; /* 防止背景內容隨鍵盤彈出而亂跳 */
+            width: 100%;
+        }
+
+        /* 頂部導航列 */
+        .header {
+            height: 50px; border-bottom: 1px solid #dbdbdb;
+            display: flex; align-items: center; padding: 0 16px;
+            font-weight: 600; font-size: 16px; justify-content: space-between;
+            background: white; flex-shrink: 0;
+        }
+        .back-btn { cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px;}
+        
+        /* 留言列表區 */
+        .content { 
+            flex: 1; overflow-y: auto; padding: 16px; 
+            overscroll-behavior-y: contain; /* 優化滑動體驗 */
+        }
+        
+        /* 第一則留言 (Caption) */
+        .caption-block { display: flex; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #efefef; margin-bottom: 12px; }
+        .caption-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #dbdbdb; flex-shrink: 0; }
+        .caption-text-area { flex: 1; font-size: 14px; line-height: 1.4; }
+        
+        /* 一般留言 */
+        .comment-row { display: flex; gap: 12px; margin-bottom: 16px; }
+        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #dbdbdb; flex-shrink: 0; }
+        .comment-user { font-weight: 600; margin-right: 5px; }
+        .comment-text-block { font-size: 14px; line-height: 1.4; }
+        .time-text { font-size: 12px; color: #8e8e8e; margin-top: 4px; display: block; }
+
+        /* 底部輸入框 */
+        .footer {
+            border-top: 1px solid #dbdbdb; padding: 10px 16px;
+            display: flex; align-items: center; background: white;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            flex-shrink: 0;
+        }
+        .user-avatar-small { width: 32px; height: 32px; border-radius: 50%; margin-right: 12px; object-fit: cover; background: #dbdbdb;}
+        .comment-input { flex: 1; border: none; font-size: 14px; padding: 8px 0; background: transparent; }
+        .post-btn { color: #bfa093; font-weight: 600; font-size: 14px; border: none; background: none; cursor: pointer; padding-left: 10px; opacity: 0.5; pointer-events: none; }
+        .post-btn.active { opacity: 1; pointer-events: auto; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="back-btn" onclick="goBackToSocial()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </div>
+        <span>Comments</span>
+        <div style="width: 30px;"></div>
+    </div>
+
+    <div class="content" id="comments-list">
+        <div style="text-align:center; margin-top:50px; color:#999;">Loading...</div>
+    </div>
+
+    <div class="footer">
+        <img src="" class="user-avatar-small" id="my-avatar">
+        <input type="text" class="comment-input" id="input-box" placeholder="Add a comment..." autocomplete="off">
+        <button class="post-btn" id="post-btn">Post</button>
+    </div>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        // --- [1] 初始化與配置 ---
+        const dbName = DB_CONFIG.name;
+        const dbVersion = DB_CONFIG.version; 
+        const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, '');
+
+        let db;
+        let userAvatarUrl = DEFAULT_AVATAR_URL;
+        let currentPost = null;
+        
+        const params = new URLSearchParams(window.location.search);
+        const postId = params.get('id');
+
+        // 測試：檢查網址抓到的 ID
+        console.log("📍 目前網址列抓到的 postId:", postId);
+
+        const channel = new BroadcastChannel('memory_update');
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, dbVersion); 
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains("posts_timeline")) {
+                        database.createObjectStore("posts_timeline", { keyPath: "id" });
+                    }
+                    if (!database.objectStoreNames.contains("user_profile")) {
+                        database.createObjectStore("user_profile");
+                    }
+                };
+                request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function loadUserProfile() {
+            return new Promise((resolve) => {
+                const tx = db.transaction("user_profile", "readonly");
+                const req = tx.objectStore("user_profile").get("avatar");
+                req.onsuccess = (e) => {
+                    const res = e.target.result;
+                    if (res) {
+                        userAvatarUrl = (res instanceof Blob || res instanceof File) ? URL.createObjectURL(res) : normalizeAvatarUrl(res);
+                        const avatarEl = document.getElementById('my-avatar');
+                        if (avatarEl) applyAvatarImage(avatarEl, userAvatarUrl);
+                    }
+                    resolve();
+                };
+                req.onerror = () => resolve();
+            });
+        }
+
+        function renderComments() {
+            const list = document.getElementById('comments-list');
+            const storedName = localStorage.getItem('myProfileName') || "User";
+            
+            // 測試：檢查目前渲染的貼文物件內容
+            console.log("📦 準備渲染貼文資料:", currentPost);
+
+            if (!currentPost) {
+                list.innerHTML = '<div style="text-align:center; color:#999; margin-top:50px;">貼文不存在</div>';
+                return;
+            }
+
+            // 顯示當前貼文 ID 以供測試 (渲染在列表最上方)
+            const comments = currentPost.comments || [];
+            let html = '';
+
+            comments.forEach((c, index) => {
+                const isMe = (c.user === storedName);
+                let displayAvatar = normalizeAvatarUrl(c.avatar || (isMe ? userAvatarUrl : DEFAULT_AVATAR_URL));
+                const rowClass = (index === 0) ? 'caption-block' : 'comment-row';
+                const avatarClass = (index === 0) ? 'caption-avatar' : 'comment-avatar';
+
+                html += `
+                    <div class="${rowClass}">
+                        <img src="${displayAvatar}" class="${avatarClass}" onerror="this.src=window.DEFAULT_AVATAR_URL">
+                        <div class="${(index === 0) ? 'caption-text-area' : 'comment-text-block'}">
+                            <span class="comment-user">${c.user || c.user_name}</span>
+                            <span style="white-space: pre-wrap;">${c.text}</span>
+                            ${c.timestamp ? `<div class="time-text">${new Date(c.timestamp).toLocaleString()}</div>` : ''}
+                        </div>
+                    </div>`;
+            });
+
+            list.innerHTML = html;
+            list.scrollTop = list.scrollHeight;
+        }
+
+        async function submitComment() {
+            const input = document.getElementById('input-box');
+            const btn = document.getElementById('post-btn');
+            const text = input.value.trim();
+            
+            if (!text || !postId) return;
+            
+            // 修正：必須從 localStorage 拿到 Email 才能上傳
+            const storedName = localStorage.getItem('myProfileName') || "User";
+            const storedEmail = localStorage.getItem('myProfileEmail');
+
+            if (!storedEmail) {
+                alert("請先登入後再留言");
+                return;
+            }
+
+            try {
+                // 修正：補齊後端要求的 user_email
+                const response = await fetch(`${API_BASE_URL}/add_comment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        photo_id: postId,
+                        user_email: storedEmail, // <--- 補上這行
+                        user_name: storedName,
+                        text: text
+                    })
+                });
+
+                if (response.ok) {
+                    console.log("✅ 留言上傳成功");
+                    const refreshRes = await fetch(`${API_BASE_URL}/get_post/${postId}`);
+                    if (refreshRes.ok) {
+                        const newData = await refreshRes.json();
+                        currentPost = newData;
+                        renderComments();
+                        channel.postMessage('updated');
+                        input.value = '';
+                        btn.classList.remove('active');
+                    }
+                } else {
+                    const errData = await response.json();
+                    console.error("❌ 上傳失敗原因:", errData);
+                    alert("上傳失敗: " + JSON.stringify(errData.detail));
+                }
+            } catch (e) {
+                console.error("❌ 網路錯誤:", e);
+                alert("留言發送失敗，請檢查網路連線");
+            }
+        }
+
+        function goBackToSocial() {
+            window.parent.postMessage('unlockSwiping', '*');
+            window.top.location.href = './index.html?tab=social'; 
+        }
+
+        async function init() {
+            if (!postId) {
+                console.error("❌ 網址沒有攜帶 ID 參數");
+                return;
+            }
+            try {
+                await initDB();
+                await loadUserProfile();
+                applyAvatarImage(document.getElementById('my-avatar'), getStoredAvatarUrl());
+
+                // 優先從 API 抓取整合型貼文詳情 (含留言)
+                try {
+                    const response = await fetch(`${API_BASE_URL}/get_post/${postId}`);
+                    if (response.ok) {
+                        currentPost = await response.json();
+                        console.log("✅ 從 API 抓到完整貼文與留言");
+                        renderComments();
+                    } else { throw new Error("API 404"); }
+                } catch (apiErr) {
+                    console.warn("⚠️ API 抓取失敗，嘗試本地備案:", apiErr);
+                    // 如果 API 沒回應，嘗試本地 IndexedDB
+                    const tx = db.transaction("posts_timeline", "readonly");
+                    const store = tx.objectStore("posts_timeline");
+                    const req = store.get(postId) || store.get(parseInt(postId));
+                    req.onsuccess = (e) => {
+                        currentPost = e.target.result;
+                        console.log("🏠 API 失敗，從本地抓取舊資料:", currentPost);
+                        renderComments();
+                    };
+                }
+            } catch (err) { console.error("Init Error:", err); }
+        }
+
+        // 事件監聽保持不變
+        const inputField = document.getElementById('input-box');
+        const postBtn = document.getElementById('post-btn');
+        inputField.oninput = () => postBtn.classList.toggle('active', inputField.value.trim().length > 0);
+        postBtn.onclick = submitComment;
+        inputField.onkeypress = (e) => { if (e.key === 'Enter') submitComment(); };
+        window.parent.postMessage('lockSwiping', '*');
+        window.addEventListener('beforeunload', () => window.parent.postMessage('unlockSwiping', '*'));
+
+        init();
+    </script>
+</body>
+</html>
+

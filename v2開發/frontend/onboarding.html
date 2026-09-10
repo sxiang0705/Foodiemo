@@ -1,0 +1,397 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Preference Selection</title>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+        /* 莫蘭迪配色方案 */
+        :root {
+            --primary-active: #D7BDB0;
+            /* 暖粉棕 */
+            --bg-global: #E3D5CA;
+            /* 米膚色 (電腦版背景) */
+            --bg-app: #F5EBE1;
+            /* 奶油色 (App 背景) */
+            --inactive: #D6CCC2;
+            /* 暖灰色 */
+            --text-dark: #6D5D55;
+            /* 深暖棕 */
+            --text-white: #FFFFFF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-global);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            width: 100%;
+            overflow: hidden;
+            /* ★ 加入這兩行來鎖死左右滑動 ★ */
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        /* --- 主容器：預設就是手機全螢幕 --- */
+        .app-container {
+            width: 100vw;
+            /* 寬度佔滿視窗 */
+            height: 100vh;
+            /* 高度佔滿視窗 */
+            background-color: var(--bg-app);
+            display: flex;
+            flex-direction: column;
+            padding: 60px 30px;
+            /* 增加頂部間距，避開手機狀態列 */
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 電腦與平板版 (大螢幕) 的響應式設定：才顯示模擬手機的外框 */
+        @media (min-width: 480px) {
+            body {
+                background-color: var(--bg-global);
+                /* 電腦版才顯示米膚色背景 */
+            }
+
+            .app-container {
+                width: 375px;
+                /* 模擬 iPhone 寬度 */
+                height: 762px;
+                /* 模擬 iPhone 高度 */
+                max-height: 90vh;
+                border-radius: 40px;
+                box-shadow: 0 20px 40px rgba(100, 80, 70, 0.15);
+                margin: auto;
+                /* 居中 */
+            }
+        }
+
+        /* 如果是手機環境，背景顏色要跟 App 一致，才不會有色差邊框 */
+        @media (max-width: 479px) {
+            body {
+                background-color: var(--bg-app);
+            }
+        }
+
+        /* --- 標題區域 --- */
+        .header {
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 40px;
+            flex-shrink: 0;
+            /* 防止被擠壓 */
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.3;
+            color: var(--text-dark);
+            letter-spacing: 0.5px;
+        }
+
+        /* --- 選項卡片區域 --- */
+        .options-container {
+            display: flex;
+            gap: 16px;
+            flex: 0 1 auto;
+            max-height: 400px;
+            /* 限制最大高度以免太長 */
+            margin-bottom: 30px;
+            width: 100%;
+        }
+
+        .option-box {
+            width: 40%;
+            /* 寬度佔滿 */
+            height: 180px;
+            /* 固定的長方形高度，這是關鍵！ */
+            flex: 1;
+            background-color: var(--inactive);
+            border-radius: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            text-align: center;
+        }
+
+        .option-box span {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--text-dark);
+            letter-spacing: 1px;
+            line-height: 1.4;
+        }
+
+        /* 選中狀態 */
+        .option-box.selected {
+            background-color: var(--primary-active);
+            transform: translateY(-8px);
+            box-shadow: 0 15px 25px rgba(215, 189, 176, 0.4);
+        }
+
+        .option-box.selected span {
+            color: var(--text-white);
+        }
+
+        /* --- 進度指示點 --- */
+        .progress-dots {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: auto;
+            /* 讓它往上頂，與下方按鈕分開 */
+            height: 20px;
+            align-items: center;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--inactive);
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            width: 30px;
+            background-color: var(--text-dark);
+            border-radius: 10px;
+        }
+
+        /* --- 下一步按鈕 --- */
+        .next-btn {
+            width: 100%;
+            height: 60px;
+            background-color: var(--primary-active);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            font-size: 32px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+            opacity: 0.4;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: none;
+        }
+
+        .next-btn.active {
+            opacity: 1;
+            pointer-events: all;
+            box-shadow: 0 10px 20px rgba(215, 189, 176, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .next-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* --- 動畫 --- */
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <div class="header">
+            <h1 id="questionTitle">Make us KNOW<br>you more</h1>
+        </div>
+
+        <div class="options-container" id="optionsContainer">
+            <div class="option-box" id="optionLeft" onclick="selectOption('left')">
+                <span id="textLeft">Option A</span>
+            </div>
+            <div class="option-box" id="optionRight" onclick="selectOption('right')">
+                <span id="textRight">Option B</span>
+            </div>
+        </div>
+
+        <div class="progress-dots" id="progressDots"></div>
+
+        <button class="next-btn" id="nextBtn">
+            <i class='bx bx-check'></i>
+        </button>
+
+    </div>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        if (!localStorage.getItem('myProfileEmail')) {
+            window.location.href = 'login.html';
+        }
+        // --- 1. 初始化與通訊 ---
+        window.parent.postMessage('lockSwiping', '*');
+        window.addEventListener('beforeunload', () => {
+            window.parent.postMessage('unlockSwiping', '*');
+        });
+
+        const dbName = DB_CONFIG.name;
+        const dbVersion = DB_CONFIG.version;
+        let db;
+        let userPreferences = []; // 用來存放使用者的選擇
+
+        // 初始化資料庫連線
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, dbVersion);
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve(db);
+                };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        // --- 2. 資料設定 ---
+        const steps = [
+            { key: "staple", left: "飯", right: "麵" },
+            { key: "diet", left: "葷食", right: "素食" },
+            { key: "cuisine", left: "中式", right: "美式" },
+            { key: "flavor", left: "清淡", right: "重口味" },
+            { key: "style", left: "餐廳", right: "街頭美食" },
+            { key: "social", left: "獨享", right: "多人分享" }
+        ];
+
+        let currentStep = 0;
+        let selectedSide = null; // 'left' 或 'right'
+
+        // DOM 元素
+        const textLeft = document.getElementById('textLeft');
+        const textRight = document.getElementById('textRight');
+        const optionLeft = document.getElementById('optionLeft');
+        const optionRight = document.getElementById('optionRight');
+        const nextBtn = document.getElementById('nextBtn');
+        const optionsContainer = document.getElementById('optionsContainer');
+        const progressDotsContainer = document.getElementById('progressDots');
+
+        // --- 3. 畫面邏輯 ---
+        function initDots() {
+            progressDotsContainer.innerHTML = '';
+            for (let i = 0; i < steps.length; i++) {
+                const dot = document.createElement('div');
+                dot.classList.add('dot');
+                if (i === 0) dot.classList.add('active');
+                progressDotsContainer.appendChild(dot);
+            }
+        }
+
+        function renderStep() {
+            optionsContainer.classList.remove('fade-in');
+            void optionsContainer.offsetWidth;
+            optionsContainer.classList.add('fade-in');
+
+            textLeft.innerText = steps[currentStep].left;
+            textRight.innerText = steps[currentStep].right;
+
+            optionLeft.classList.remove('selected');
+            optionRight.classList.remove('selected');
+            selectedSide = null;
+            nextBtn.classList.remove('active');
+
+            const dots = document.querySelectorAll('.dot');
+            dots.forEach((dot, index) => {
+                dot.classList.toggle('active', index === currentStep);
+            });
+        }
+
+        function selectOption(side) {
+            selectedSide = side;
+            if (side === 'left') {
+                optionLeft.classList.add('selected');
+                optionRight.classList.remove('selected');
+            } else {
+                optionRight.classList.add('selected');
+                optionLeft.classList.remove('selected');
+            }
+            nextBtn.classList.add('active');
+        }
+
+        // --- 4. 存檔與導航 ---
+        nextBtn.addEventListener('click', async function () {
+            if (!selectedSide) return;
+
+            // 紀錄這一輪的選擇
+            const choice = steps[currentStep][selectedSide];
+            userPreferences.push({
+                key: steps[currentStep].key,
+                value: choice
+            });
+
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                renderStep();
+            } else {
+                // ★ 最後一步：將所有偏好存入資料庫 ★
+                await savePreferencesToDB();
+
+                window.parent.postMessage('unlockSwiping', '*');
+                // 跳轉至首頁，並指定回到 social 分頁
+                window.top.location.href = "index.html?tab=home";
+            }
+        });
+
+        async function savePreferencesToDB() {
+            if (!db) await initDB();
+            return new Promise((resolve) => {
+                const tx = db.transaction("user_profile", "readwrite");
+                const store = tx.objectStore("user_profile");
+
+                // 將偏好設定陣列存入 'preferences' 標籤
+                store.put(userPreferences, "preferences");
+
+                tx.oncomplete = () => {
+                    console.log("✅ 偏好設定已永久存入 IndexedDB");
+                    resolve();
+                };
+            });
+        }
+
+        // 啟動
+        initDots();
+        renderStep();
+        initDB(); // 預先連線資料庫
+    </script>
+</body>
+
+</html>
+

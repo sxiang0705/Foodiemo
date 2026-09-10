@@ -1,0 +1,25 @@
+{
+  "short_name": "Foodie",
+  "name": "Foodie Community - 美食社群平台",
+  "description": "記錄與分享您的美食回憶",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./login.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#D7BDB0",
+  "background_color": "#F3ECE5"
+}

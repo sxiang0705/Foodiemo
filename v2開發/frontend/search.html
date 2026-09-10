@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Discover</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: #F3ECE5;
+            color: #8C7B6D;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            background-color: transparent;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .back-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: #5D4D40;
+            pointer-events: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading-container {
+            height: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: height 0.2s;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #ddd;
+            border-top-color: #8C7B6D;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .list-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 80px 24px 40px 24px;
+            position: relative;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .list-container::-webkit-scrollbar { display: none; }
+
+        .card {
+            background-color: white;
+            border-radius: 24px;
+            overflow: hidden;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 20px rgba(140, 123, 109, 0.1);
+            position: relative;
+            height: 320px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .card:active { transform: scale(0.98); }
+
+        .card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-info-overlay {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: calc(100% - 20px);
+            margin: 10px;
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+            padding: 20px;
+            border-radius: 16px;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        .card-subtitle {
+            font-size: 15px;
+            font-weight: 600;
+            color: #5D4D40;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(93, 77, 64, 0.08);
+            color: #5D4D40;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #8C7B6D;
+        }
+
+        .detail-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #fff;
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .detail-modal.active { display: flex; transform: translateY(0); }
+
+        .detail-img-header { width: 100%; height: 350px; position: relative; }
+        .detail-main-img { width: 100%; height: 100%; object-fit: cover; }
+
+        .detail-nav {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .nav-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            cursor: pointer;
+        }
+
+        .detail-content {
+            padding: 24px;
+            background-color: #fff;
+            border-radius: 30px 30px 0 0;
+            margin-top: -30px;
+            position: relative;
+            min-height: 500px;
+        }
+
+        .detail-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            gap: 16px;
+        }
+
+        .detail-title { font-size: 28px; font-weight: 800; color: #000; margin-bottom: 5px; }
+        .detail-desc-short { color: #666; font-size: 14px; }
+
+        .navigate-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: #F3ECE5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            flex-shrink: 0;
+        }
+
+        .navigate-btn svg { fill: #5D4D40; stroke: none; }
+
+        .info-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 12px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .info-icon { width: 18px; text-align: center; font-weight: bold; color: #000; }
+
+        .review-section {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            padding: 18px;
+            border-radius: 18px;
+            background: #F8F4EF;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #d7bdb0;
+            flex-shrink: 0;
+        }
+
+        .review-text { font-size: 14px; line-height: 1.6; color: #555; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in-item { animation: fadeIn 0.4s ease-out forwards; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="index.html" target="_top" class="back-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </a>
+    </div>
+
+    <div class="loading-container" id="loadingContainer">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="list-container" id="listContainer"></div>
+
+    <div id="detailModal" class="detail-modal">
+        <div class="detail-img-header">
+            <img id="modal-img" src="" class="detail-main-img" alt="restaurant">
+            <div class="detail-nav">
+                <div class="nav-circle" onclick="closeDetail()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-content">
+            <div class="detail-header-row">
+                <div>
+                    <div id="modal-title" class="detail-title">Title</div>
+                    <div id="modal-subtitle" class="detail-desc-short">Subtitle</div>
+                </div>
+                <div class="navigate-btn" onclick="openGoogleMap()">
+                    <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path d="M12 2L4.5 20.29C4.24 20.89 4.88 21.49 5.46 21.16L12 17.5L18.54 21.16C19.12 21.49 19.76 20.89 19.5 20.29L12 2Z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="info-row">
+                <div class="info-icon">⭐</div>
+                <div id="modal-rating">Google 評分</div>
+            </div>
+            <div class="info-row">
+                <div class="info-icon">🕒</div>
+                <div id="modal-hours">Opened</div>
+            </div>
+            <div class="info-row">
+                <div class="info-icon">💲</div>
+                <div id="modal-price">Price</div>
+            </div>
+            <div class="info-row">
+                <div class="info-icon">📍</div>
+                <div id="modal-address">Address</div>
+            </div>
+
+            <div class="review-section">
+                <div class="user-avatar"></div>
+                <div class="review-text">
+                    <b id="modal-source-label">Foodie 推薦</b><br>
+                    <span id="modal-source-text">這份餐廳資料會依目前後端來源更新，若已接上 Google Places API，就會顯示真實店家資訊。</span>
+                </div>
+            </div>
+
+            <div style="height: 50px;"></div>
+        </div>
+    </div>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script src="static/api/client.js"></script>
+    <script>
+        window.parent.postMessage('lockSwiping', '*');
+        window.addEventListener('beforeunload', () => {
+            window.parent.postMessage('unlockSwiping', '*');
+        });
+
+        const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, '');
+        const listContainer = document.getElementById('listContainer');
+        const loadingContainer = document.getElementById('loadingContainer');
+        const modal = document.getElementById('detailModal');
+
+        let currentRestaurants = [];
+        let currentDetailMapLink = '';
+        let currentDetailSource = 'postgresql';
+        let nextCursor = null;
+        let activeRequest = null;
+        let requestVersion = 0;
+
+        function showLoading(active) {
+            loadingContainer.style.height = active ? '60px' : '0px';
+        }
+
+        function fallbackCardImage() {
+            return 'assets/restaurant-placeholder.svg';
+        }
+
+        function safeImage(value) {
+            if (typeof value !== 'string' || !value) return fallbackCardImage();
+            try {
+                const url = new URL(value, location.href);
+                return url.protocol === 'https:' || (url.origin === location.origin && ['http:', 'https:'].includes(url.protocol))
+                    ? url.href : fallbackCardImage();
+            } catch (_) { return fallbackCardImage(); }
+        }
+
+        function renderEmpty(message) {
+            currentRestaurants = [];
+            const node = document.createElement('div');
+            node.className = 'empty-state';
+            node.textContent = message;
+            listContainer.replaceChildren(node);
+        }
+
+        function renderList(data, source) {
+            currentRestaurants = data;
+            listContainer.replaceChildren();
+            if (!data.length) {
+                renderEmpty('目前沒有可顯示的餐廳推薦');
+                return;
+            }
+            data.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'card fade-in-item';
+                card.dataset.restaurantId = item.id;
+                card.style.animationDelay = `${index * 0.1}s`;
+                card.onclick = () => openDetail(item, source);
+                const img = document.createElement('img');
+                img.className = 'card-img';
+                img.alt = item.title || '未命名餐廳';
+                img.src = safeImage(item.img);
+                img.onerror = () => { img.onerror = null; img.src = fallbackCardImage(); };
+                const overlay = document.createElement('div');
+                overlay.className = 'card-info-overlay';
+                [['card-title', item.title || '未命名餐廳'],
+                 ['card-subtitle', item.subtitle || '餐廳推薦'],
+                 ['status-chip', '真實資料' + (item.rating != null ? ` · ${item.rating}⭐` : '')]]
+                    .forEach(([className, value]) => {
+                        const node = document.createElement('div');
+                        node.className = className; node.textContent = value; overlay.appendChild(node);
+                    });
+                card.append(img, overlay);
+                listContainer.appendChild(card);
+            });
+        }
+
+        async function fetchRestaurants() {
+            const version = ++requestVersion;
+            activeRequest?.abort();
+            const controller = new AbortController();
+            activeRequest = controller;
+            showLoading(true);
+            try {
+                const data = await FoodiemoAPI.recommendations(nextCursor, controller.signal);
+                if (version !== requestVersion) return;
+                nextCursor = data.next_cursor || null;
+                renderList(data.items, data.source);
+            } catch (error) {
+                if (version !== requestVersion) return;
+                renderEmpty('餐廳資料暫時讀取失敗，請稍後再試');
+            } finally {
+                if (version === requestVersion) { activeRequest = null; showLoading(false); }
+            }
+        }
+
+        const getY = (e) => e.touches ? e.touches[0].clientY : e.clientY;
+        let startY = 0;
+        let isPulling = false;
+
+        function startDrag(e) {
+            if (listContainer.scrollTop <= 0) {
+                startY = getY(e);
+                isPulling = true;
+            } else {
+                isPulling = false;
+            }
+        }
+
+        function moveDrag(e) {
+            if (!isPulling) return;
+            const diff = getY(e) - startY;
+            if (diff > 0) {
+                if (e.cancelable && e.type === 'touchmove') e.preventDefault();
+                if (diff < 200) loadingContainer.style.height = `${diff / 2.5}px`;
+            } else {
+                isPulling = false;
+            }
+        }
+
+        function endDrag() {
+            if (!isPulling) return;
+            isPulling = false;
+            const currentHeight = parseInt(loadingContainer.style.height || 0, 10);
+            if (currentHeight > 40) {
+                fetchRestaurants();
+            } else {
+                showLoading(false);
+            }
+        }
+
+        listContainer.addEventListener('touchstart', startDrag, { passive: true });
+        listContainer.addEventListener('touchmove', moveDrag, { passive: false });
+        listContainer.addEventListener('touchend', endDrag);
+        listContainer.addEventListener('mousedown', startDrag);
+        listContainer.addEventListener('mousemove', moveDrag);
+        listContainer.addEventListener('mouseup', endDrag);
+        listContainer.addEventListener('mouseleave', endDrag);
+
+        function openDetail(item, source) {
+            const detailImage = document.getElementById('modal-img');
+            detailImage.onerror = () => { detailImage.onerror = null; detailImage.src = fallbackCardImage(); };
+            detailImage.src = safeImage(item.img);
+            document.getElementById('modal-title').innerText = item.title || '未命名餐廳';
+            document.getElementById('modal-subtitle').innerText = item.subtitle || '餐廳推薦';
+            document.getElementById('modal-rating').innerText = item.rating != null ? `評分 ${item.rating}` : '評分未提供';
+            document.getElementById('modal-hours').innerText = item.hours || '營業時間請看地圖';
+            document.getElementById('modal-price').innerText = item.price || '價格未提供';
+            document.getElementById('modal-address').innerText = item.address || '地址未提供';
+            document.getElementById('modal-source-label').innerText = '餐廳資料';
+            document.getElementById('modal-source-text').innerText = '這筆店家資訊來自餐廳資料庫。未提供的照片、評分與價位不以示意數值代替，營業時間請以店家公告為準。';
+
+            currentDetailMapLink = item.mapLink || '';
+            currentDetailSource = source;
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
+        }
+
+        function closeDetail() {
+            modal.classList.remove('active');
+            setTimeout(() => { modal.style.display = 'none'; }, 300);
+        }
+
+        function openGoogleMap() {
+            if (currentDetailMapLink) {
+                try {
+                    const url = new URL(currentDetailMapLink);
+                    if (url.protocol !== 'https:' || url.hostname !== 'www.google.com' || !url.pathname.startsWith('/maps/')) throw new Error();
+                    window.open(url.href, '_blank', 'noopener,noreferrer');
+                } catch (_) { alert('目前沒有地圖連結'); }
+            } else {
+                alert(currentDetailSource === 'google_places' ? '目前沒有地圖連結' : '此餐廳尚未設定地圖連結');
+            }
+        }
+
+        fetchRestaurants();
+    </script>
+</body>
+</html>

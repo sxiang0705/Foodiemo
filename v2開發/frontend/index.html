@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Memories PWA</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Memories">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="theme-color" content="#F3ECE5">
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('🚀 PWA: Service Worker 註冊成功', reg.scope))
+                    .catch(err => console.log('❌ PWA: Service Worker 註冊失敗', err));
+            });
+        }
+    </script>
+    <style>
+        /* 核心殼層樣式 */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden; 
+            background-color: #F3ECE5;
+        }
+
+        .wrapper {
+            display: flex;
+            width: 300vw; 
+            height: 100%;
+            will-change: transform;
+        }
+
+        .page {
+            width: 100vw;
+            height: 100%;
+            flex-shrink: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        .drag-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 9999;
+            pointer-events: none; 
+            background: transparent;    
+        }
+    </style>
+</head>
+<body>
+    <div class="drag-overlay" id="dragOverlay"></div>
+    <div class="wrapper" id="swipeWrapper">
+        <div class="page"><iframe src="memories.html"></iframe></div>
+        <div class="page"><iframe src="home.html"></iframe></div>
+        <div class="page"><iframe src="social.html"></iframe></div>
+    </div>
+
+    <script src="env.js"></script>
+    <script src="config.js"></script> 
+<script>
+    // --- [0. 防止狂閃阻斷器] ---
+    (function routeGuard() {
+        const userEmail = localStorage.getItem('myProfileEmail');
+        const path = window.location.pathname;
+        const page = path.split("/").pop();
+        if (!userEmail) {
+            if (page !== "login.html" && page !== "signup.html") {
+                window.location.replace("login.html");
+                return;
+            }
+        } else if (page === "login.html" || page === "signup.html") {
+            window.location.replace("index.html");
+            return;
+        }
+    })();
+
+    // --- 1. 全域變數 ---
+    const swipeWrapper = document.getElementById('swipeWrapper');
+    const overlay = document.getElementById('dragOverlay');
+    const frames = document.querySelectorAll('iframe');
+
+    let isScrollLocked = false; 
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let currentIndex = 1; // 預設 Home
+
+    function notifyVisiblePage() {
+        frames.forEach((frame, index) => {
+            try {
+                frame.contentWindow.postMessage({
+                    type: 'pageVisibility',
+                    visible: index === currentIndex,
+                    pageIndex: index
+                }, '*');
+            } catch (error) {
+                console.warn('pageVisibility postMessage failed', error);
+            }
+        });
+    }
+
+    // --- 2. 核心跳轉函式 ---
+    function goToPage(index, animate = true) {
+        if (!swipeWrapper) return;
+        
+        currentIndex = Math.max(0, Math.min(index, 2));
+        // 強制計算目前的螢幕寬度，避免縮放導致位移錯誤
+        const width = window.innerWidth;
+        const offset = -currentIndex * width;
+        
+        swipeWrapper.style.transition = animate ? 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)' : 'none';
+        swipeWrapper.style.transform = `translateX(${offset}px)`;
+        
+        console.log(`📍 目前頁面索引: ${currentIndex}, 位移: ${offset}px`);
+
+        // 滑動結束後的點擊保護清空
+        setTimeout(() => {
+            if (!isDragging) overlay.style.pointerEvents = 'none';
+        }, 450);
+
+        notifyVisiblePage();
+    }
+
+    // --- 3. 觸摸事件攔截與處理 ---
+    window.addEventListener('touchstart', (e) => {
+        if (isScrollLocked) return;
+        startX = e.touches[0].clientX;
+        isDragging = true;
+        swipeWrapper.style.transition = 'none';
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!isDragging || isScrollLocked) return;
+        
+        currentX = e.touches[0].clientX;
+        const diff = currentX - startX;
+        const baseOffset = -currentIndex * window.innerWidth;
+        
+        let moveX = baseOffset + diff;
+
+        // 第一頁與最後一頁的阻力感
+        if ((currentIndex === 0 && diff > 0) || (currentIndex === 2 && diff < 0)) {
+            moveX = baseOffset + diff * 0.3;
+        }
+        
+        swipeWrapper.style.transform = `translateX(${moveX}px)`;
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+        if (!isDragging || isScrollLocked) return;
+        isDragging = false;
+        
+        const diff = e.changedTouches[0].clientX - startX;
+        const threshold = window.innerWidth / 5; // 提高靈敏度，1/5 螢幕就翻頁
+
+        if (Math.abs(diff) > threshold) {
+            if (diff > 0 && currentIndex > 0) currentIndex--;
+            else if (diff < 0 && currentIndex < 2) currentIndex++;
+        }
+        
+        goToPage(currentIndex);
+    });
+
+    // --- 4. 初始化邏輯 ---
+    function bootApp() {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        
+        if (tab === 'memories') currentIndex = 0;
+        else if (tab === 'social') currentIndex = 2;
+        else currentIndex = 1;
+
+        // 確保在渲染的第一時間就定位到 Home
+        goToPage(currentIndex, false);
+    }
+
+    // 監聽訊息
+    window.addEventListener('message', (e) => {
+        if (e.data === 'lockSwiping') isScrollLocked = true;
+        if (e.data === 'unlockSwiping') isScrollLocked = false;
+    });
+
+    // 頁面加載完成後啟動
+    document.addEventListener('DOMContentLoaded', bootApp);
+
+    // 視窗大小改變時重新校準（防止旋轉手機後跑位）
+    window.addEventListener('resize', () => goToPage(currentIndex, false));
+
+    // 處理 iframe 內部手勢穿透
+    window.onload = () => {
+        frames.forEach(frame => {
+            const win = frame.contentWindow;
+            ['touchstart', 'touchmove', 'touchend'].forEach(type => {
+                win.addEventListener(type, (e) => {
+                    if (isScrollLocked) return;
+                    const clonedEvent = new TouchEvent(type, {
+                        touches: Array.from(e.touches),
+                        changedTouches: Array.from(e.changedTouches)
+                    });
+                    window.dispatchEvent(clonedEvent);
+
+                    if (type === 'touchstart') overlay.style.pointerEvents = 'auto';
+                    if (type === 'touchend') overlay.style.pointerEvents = 'none';
+                }, { passive: true });
+            });
+        });
+    };
+</script>
+  
+</body>
+</html>
+
