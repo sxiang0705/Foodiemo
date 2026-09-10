@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -221,34 +221,7 @@
          * 初始化資料庫 (與 signup/comments 邏輯對齊)
          */
         function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, dbVersion); 
-
-                request.onupgradeneeded = (e) => {
-                    const database = e.target.result;
-                    console.log(`正在同步資料庫結構...`);
-
-                    // 1. 社交牆主表 (對接 social.html)
-                    if (!database.objectStoreNames.contains('posts_timeline')) {
-                        database.createObjectStore('posts_timeline', { keyPath: 'id' });
-                    }
-                    // 2. 個人資料表 (對接 profile.html)
-                    if (!database.objectStoreNames.contains('user_profile')) {
-                        database.createObjectStore('user_profile');
-                    }
-                };
-
-                request.onsuccess = (e) => { 
-                    db = e.target.result; 
-                    // 處理版本衝突
-                    db.onversionchange = () => {
-                        db.close();
-                        location.reload();
-                    };
-                    resolve(db); 
-                };
-                request.onerror = (e) => reject(e.target.error);
-            });
+            return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
 
         // --- 2. 頁面載入邏輯 ---
@@ -257,6 +230,7 @@
         const fileInput = document.getElementById('hiddenFileInput');
 
         window.addEventListener('load', async () => {
+            await window.FoodiemoSessionReady;
             await initDB();
 
             // 1. 讀取名字
@@ -317,45 +291,24 @@
         /**
          * 儲存名字 (失去焦點或按 Enter 時)
          */
+        let savingName = false;
         async function saveName() {
-            const newName = usernameField.innerText.trim();
-            const finalName = newName || "Me";
-            const email = localStorage.getItem('myProfileEmail');
-            
-            // 1. 立即更新本地 UI 與快取
-            usernameField.innerText = finalName;
-            localStorage.setItem('myProfileName', finalName);
-
-            // 2. 同步到本地資料庫 (供留言板即時抓取)
-            if (db) {
-                const tx = db.transaction("user_profile", "readwrite");
-                tx.objectStore("user_profile").put(finalName, "username");
-            }
-
-            // 3. 發送廣播通知其他分頁 (例如 Social 頁面)
-            channel.postMessage('updated');
-
-            // 4. 【核心補強】發送至後端永久儲存
-            if (email) {
-                try {
-                    const formData = new FormData();
-                    formData.append('email', email);
-                    formData.append('name', finalName);
-
-                    const response = await fetch(`${API_BASE_URL}/update_profile_name`, {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (response.ok) {
-                        console.log("✅ 後端名字更新成功");
-                    } else {
-                        console.error("❌ 後端名字更新失敗");
-                    }
-                } catch (err) {
-                    console.error("❌ 網路錯誤，名字僅儲存在本地:", err);
-                }
-            }
+            if (savingName) return;
+            const previous = localStorage.getItem('myProfileName') || 'Me';
+            const finalName = usernameField.innerText.trim() || 'Me';
+            if (finalName === previous) return;
+            savingName = true;
+            try {
+                const form = new FormData();form.append('name',finalName);
+                const response = await fetch(API_BASE_URL+'/update_profile_name',{method:'POST',body:form});
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || '名稱尚未保存');
+                localStorage.setItem('myProfileName',data.name);
+                usernameField.innerText=data.name;
+                if (db) db.transaction('user_profile','readwrite').objectStore('user_profile').put(data.name,'username');
+                channel.postMessage('updated');
+            } catch(error) { usernameField.innerText=previous;alert(error.message); }
+            finally { savingName=false; }
         }
 
         /**
@@ -415,6 +368,8 @@
                 console.error("❌ 網路請求錯誤:", err);
                 alert("無法連線至伺服器，請檢查後端是否啟動");
             } finally {
+                URL.revokeObjectURL(previewUrl);
+                await loadAvatar();
                 avatarDisplay.style.opacity = '1';
             }
         });

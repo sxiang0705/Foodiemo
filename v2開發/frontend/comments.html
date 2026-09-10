@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -98,20 +98,7 @@
         const channel = new BroadcastChannel('memory_update');
 
         function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, dbVersion); 
-                request.onupgradeneeded = (e) => {
-                    const database = e.target.result;
-                    if (!database.objectStoreNames.contains("posts_timeline")) {
-                        database.createObjectStore("posts_timeline", { keyPath: "id" });
-                    }
-                    if (!database.objectStoreNames.contains("user_profile")) {
-                        database.createObjectStore("user_profile");
-                    }
-                };
-                request.onsuccess = (e) => { db = e.target.result; resolve(db); };
-                request.onerror = (e) => reject(e.target.error);
-            });
+            return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
 
         async function loadUserProfile() {
@@ -136,7 +123,7 @@
             const storedName = localStorage.getItem('myProfileName') || "User";
             
             // 測試：檢查目前渲染的貼文物件內容
-            console.log("📦 準備渲染貼文資料:", currentPost);
+
 
             if (!currentPost) {
                 list.innerHTML = '<div style="text-align:center; color:#999; margin-top:50px;">貼文不存在</div>';
@@ -155,10 +142,10 @@
 
                 html += `
                     <div class="${rowClass}">
-                        <img src="${displayAvatar}" class="${avatarClass}" onerror="this.src=window.DEFAULT_AVATAR_URL">
+                        <img src="${escapeHtml(displayAvatar)}" class="${avatarClass}" onerror="this.src=window.DEFAULT_AVATAR_URL">
                         <div class="${(index === 0) ? 'caption-text-area' : 'comment-text-block'}">
-                            <span class="comment-user">${c.user || c.user_name}</span>
-                            <span style="white-space: pre-wrap;">${c.text}</span>
+                            <span class="comment-user">${escapeHtml(c.user || c.user_name)}</span>
+                            <span style="white-space: pre-wrap;">${escapeHtml(c.text)}</span>
                             ${c.timestamp ? `<div class="time-text">${new Date(c.timestamp).toLocaleString()}</div>` : ''}
                         </div>
                     </div>`;
@@ -173,7 +160,7 @@
             const btn = document.getElementById('post-btn');
             const text = input.value.trim();
             
-            if (!text || !postId) return;
+            if (!text || !postId || btn.disabled) return;
             
             // 修正：必須從 localStorage 拿到 Email 才能上傳
             const storedName = localStorage.getItem('myProfileName') || "User";
@@ -184,6 +171,7 @@
                 return;
             }
 
+            btn.disabled = true;
             try {
                 // 修正：補齊後端要求的 user_email
                 const response = await fetch(`${API_BASE_URL}/add_comment`, {
@@ -216,7 +204,7 @@
             } catch (e) {
                 console.error("❌ 網路錯誤:", e);
                 alert("留言發送失敗，請檢查網路連線");
-            }
+            } finally { btn.disabled = false; }
         }
 
         function goBackToSocial() {
@@ -243,16 +231,8 @@
                         renderComments();
                     } else { throw new Error("API 404"); }
                 } catch (apiErr) {
-                    console.warn("⚠️ API 抓取失敗，嘗試本地備案:", apiErr);
-                    // 如果 API 沒回應，嘗試本地 IndexedDB
-                    const tx = db.transaction("posts_timeline", "readonly");
-                    const store = tx.objectStore("posts_timeline");
-                    const req = store.get(postId) || store.get(parseInt(postId));
-                    req.onsuccess = (e) => {
-                        currentPost = e.target.result;
-                        console.log("🏠 API 失敗，從本地抓取舊資料:", currentPost);
-                        renderComments();
-                    };
+                    currentPost = null;
+                    document.getElementById("comments-list").textContent = "讀取貼文失敗，請返回後重試";
                 }
             } catch (err) { console.error("Init Error:", err); }
         }

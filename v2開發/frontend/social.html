@@ -354,17 +354,17 @@
             const key = feedType + "-" + post.id;
             const imageHtml = images.map((src) => `
                 <div class="slide">
-                    <img src="${src}" alt="${post.username}" onerror="this.src='IMG_1940.jpg'">
+                    <img src="${escapeHtml(src)}" alt="${escapeHtml(post.username)}" onerror="this.src='IMG_1940.jpg'">
                 </div>
             `).join("");
 
             return `
                 <div class="post-header">
                     <div class="user-info">
-                        <img src="${getAvatar(post.userAvatar)}" class="avatar" onerror="this.src=window.DEFAULT_AVATAR_URL">
+                        <img src="${escapeHtml(getAvatar(post.userAvatar))}" class="avatar" onerror="this.src=window.DEFAULT_AVATAR_URL">
                         <div class="meta">
-                            <div class="username">${post.username}</div>
-                            <div class="subline">${post.handle || ""}${post.location ? " - " + post.location : ""}</div>
+                            <div class="username">${escapeHtml(post.username)}</div>
+                            <div class="subline">${escapeHtml(post.handle || "")}${post.location ? " - " + escapeHtml(post.location) : ""}</div>
                         </div>
                     </div>
                     <button class="more-btn" onclick="window.toggleMenu(event, '${key}')">${icons.more}</button>
@@ -387,7 +387,7 @@
                         <button class="icon-btn" onclick="window.openComments('${post.id}', '${feedType}')">${icons.comment}</button>
                     </div>
                     ${typeof post.rating === "number" ? `<div class="rating">${TEXT.ratingLabel}${post.rating.toFixed(1)}</div>` : ""}
-                    <div class="caption">${post.caption || ""}</div>
+                    <div class="caption">${escapeHtml(post.caption || "")}</div>
                     <span class="date">${post.date || new Date(post.timestamp || Date.now()).toLocaleDateString()}</span>
                 </div>
             `;
@@ -412,11 +412,13 @@
 
             try {
                 const response = await fetch(API_BASE_URL + "/get_memories?email=" + encodeURIComponent(email) + "&t=" + Date.now());
+                if (!response.ok) throw new Error("讀取貼文失敗，請稍後再試");
                 const result = await response.json();
                 normalizeMinePosts(Array.isArray(result) ? result : (result.data || []));
             } catch (error) {
                 console.error(TEXT.feedLoadFailed, error);
-                myPosts = [];
+                mineFeed.textContent = "讀取貼文失敗，請稍後再試";
+                return;
             }
 
             renderFeed(mineFeed, myPosts, "mine");
@@ -495,9 +497,8 @@
             if (!confirm(TEXT.deleteConfirm)) return;
 
             try {
-                const firstUrl = Array.isArray(post.imageUrls) ? post.imageUrls[0] : post.url;
                 const response = await fetch(
-                    API_BASE_URL + "/delete_single_photo?post_id=" + encodeURIComponent(postId) + "&photo_url=" + encodeURIComponent(firstUrl) + "&email=" + encodeURIComponent(email),
+                    API_BASE_URL + "/posts/" + encodeURIComponent(postId),
                     { method: "DELETE" }
                 );
                 if (!response.ok) throw new Error("delete failed");
@@ -518,12 +519,13 @@
         });
 
         channel.onmessage = async (event) => {
-            if (event.data === "updated" || event.data?.action === "updated") {
+            if (event.data === "updated" || event.data?.action === "updated" || event.data?.type === "updated") {
                 await loadMineFeed();
             }
         };
 
         async function init() {
+            await window.FoodiemoSessionReady;
             makeDiscoverPosts();
             renderFeed(discoverFeed, discoverPosts, "discover");
             await loadMineFeed();

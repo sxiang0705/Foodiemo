@@ -18,6 +18,13 @@ class Settings:
     password: str = field(repr=False)
     environment: str = "development"
 
+    app_secret: str = field(default="",repr=False)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = field(default="",repr=False)
+    smtp_from: str = ""
+
     @classmethod
     def from_env(cls):
         load_dotenv(ROOT / ".env", override=False, encoding="utf-8-sig")
@@ -32,7 +39,9 @@ class Settings:
             raise RuntimeError("DB_PORT 必須介於 1 與 65535") from None
         return cls(os.environ["DB_HOST"], port, os.environ["DB_NAME"],
                    os.environ["DB_USER"], os.environ["DB_PASSWORD"],
-                   os.getenv("APP_ENV", "development"))
+                   os.getenv("APP_ENV", "development"),
+                   os.getenv("APP_SECRET", ""),os.getenv("SMTP_HOST", ""),int(os.getenv("SMTP_PORT", "587")),
+                   os.getenv("SMTP_USERNAME", ""),os.getenv("SMTP_PASSWORD", ""),os.getenv("SMTP_FROM_EMAIL", ""))
 
     @property
     def url(self):

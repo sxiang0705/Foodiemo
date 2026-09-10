@@ -129,7 +129,8 @@
         </div>
 
         <button class="verify-btn" id="verifyBtn" disabled>Verify</button>
-        <div class="hint" id="previewHint"></div>
+        <div class="hint" id="previewHint" role="status"></div>
+        <button type="button" id="resendBtn" class="verify-btn" style="margin-top:12px;font-size:14px">重新寄送驗證碼</button>
     </div>
 
     <script src="env.js"></script>
@@ -227,8 +228,17 @@
         paintInput('');
         realInput.focus();
 
-        const localPreview = localStorage.getItem('temp_last_code_preview');
-        if (localPreview) previewHint.textContent = `本機測試提示：驗證碼 ${localPreview}`;
+        document.getElementById('resendBtn').onclick = async function() {
+            this.disabled=true;
+            try {
+                const response=await fetch(API_BASE_URL+'/send_email_code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,purpose})});
+                const data=await response.json();
+                if(!response.ok)throw new Error(data.detail || '驗證信尚未寄出');
+                previewHint.textContent='若帳號符合條件，驗證信已寄出；60 秒後可重寄。';
+                setTimeout(()=>{this.disabled=false;},60000);
+            }catch(error){previewHint.textContent=error.message;this.disabled=false;}
+        };
+
     </script>
 </body>
 </html>

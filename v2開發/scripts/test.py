@@ -21,5 +21,5 @@ if __name__ == "__main__":
         from app.core.safety import assert_test_target
         assert_test_target(Settings.from_env())
         os.environ["RUN_PG_TESTS"] = "1"
-        sys.exit(pytest.main(["-q", "tests/test_integration.py"]))
-    sys.exit(pytest.main(["-q", "tests/test_unit.py"]))
+        sys.exit(pytest.main(["-q", "--tb=short", "tests/test_integration.py", "tests/test_features.py"]))
+    sys.exit(pytest.main(["-q", "--tb=short", "tests/test_unit.py"]))

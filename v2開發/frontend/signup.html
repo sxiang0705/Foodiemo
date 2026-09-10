@@ -198,16 +198,7 @@
         window.addEventListener('beforeunload', () => window.parent.postMessage('unlockSwiping', '*'));
 
         function initUserDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
-                request.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains("user_profile")) db.createObjectStore("user_profile");
-                    if (!db.objectStoreNames.contains("posts_timeline")) db.createObjectStore("posts_timeline", { keyPath: "id" });
-                };
-                request.onsuccess = (e) => resolve(e.target.result);
-                request.onerror = (e) => reject(e.target.error);
-            });
+            return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
 
         function showCodePreview(data) {
@@ -244,7 +235,7 @@
                 dob: inputs.dob.input.value.trim(),
                 email: inputs.email.input.value.trim(),
                 phone: inputs.phone.input.value.trim(),
-                password: inputs.password.input.value.trim()
+                password: inputs.password.input.value
             };
 
             signupBtn.textContent = '處理中...';

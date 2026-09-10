@@ -120,7 +120,7 @@ def test_db_error_redacted(client):
     assert response.status_code==503
     assert "SQL private" not in response.text and "secret" not in response.text
 def test_unimplemented_is_not_fake_success(client):
-    assert client.post("/api/login",json={}).status_code==501
+    assert client.post("/api/login/google",json={}).status_code==501
 def test_frontend_static_and_secrets(client):
     assert client.get("/search.html").status_code==200
     assert "FoodiemoAPI" in client.get("/static/api/client.js").text

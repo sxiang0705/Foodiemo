@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -234,26 +234,11 @@
 
         // --- 3. 資料存取與資料庫 ---
         function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, dbVersion);
-                
-                request.onupgradeneeded = (e) => {
-                    const database = e.target.result;
-                    if (!database.objectStoreNames.contains("posts")) {
-                        database.createObjectStore("posts", { keyPath: "id" });
-                    }
-                };
-
-                request.onsuccess = (e) => { 
-                    db = e.target.result; 
-                    resolve(db); 
-                };
-                request.onerror = (e) => reject(e);
-            });
+            return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
 
         channel.onmessage = async function(event) {
-            if (event.data === 'updated' || event.data.action === 'updated') { 
+            if (event.data === 'updated' || event.data?.action === 'updated' || event.data?.type === 'updated') {
                 await loadDataFromDB(); 
             }
         };
@@ -271,6 +256,7 @@
 
             try {
                 const response = await fetch(`${API_BASE_URL}/get_memories?email=${myEmail}&t=${Date.now()}`);
+                if (!response.ok) throw new Error("讀取回憶失敗");
                 const result = await response.json();
                 
                 // --- 修正點：相容多種後端回傳格式 ---
@@ -283,8 +269,8 @@
                     memoriesArray = result.data;
                 }
 
-                if (memoriesArray.length > 0) {
-                    savedMemories = {}; // 清空舊資料
+                savedMemories = {};
+                if (memoriesArray.length > 0) { // 清空舊資料
                     
                     memoriesArray.forEach(record => {
                         // 確保日期存在，且格式為 YYYY-MM-DD
@@ -311,10 +297,10 @@
                         savedMemories[key].sort((a, b) => a.timestamp - b.timestamp);
                     }
                     
-                    console.log("✅ 成功載入回憶資料:", savedMemories);
+
                     renderCalendar(); // 重新渲染有照片的日曆
                 } else {
-                    console.log("📭 伺服器端目前沒有您的回憶照片");
+                    renderCalendar();
                 }
             } catch (e) { 
                 console.error("❌ 讀取 API 失敗:", e); 
@@ -595,6 +581,7 @@
 
         // --- 初始化執行 ---
         initDB().then(async () => { 
+            await window.FoodiemoSessionReady;
             resetToCurrentMonth();
             await loadDataFromDB(); 
         });

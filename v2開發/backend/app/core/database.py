@@ -9,4 +9,4 @@ def build_engine(settings, *, readonly=True):
     return create_engine(settings.url, pool_pre_ping=True, pool_size=5,
                          max_overflow=5, pool_timeout=5, hide_parameters=True,
                          connect_args={"connect_timeout": 5, "options": options},
-                         execution_options={"isolation_level": "REPEATABLE READ"})
+                         execution_options={"isolation_level": "REPEATABLE READ" if readonly else "READ COMMITTED"})

@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT.parent/"前端原始程式碼/frontend"
-CHANGED={"config.js","search.html","sw.js"}
+CHANGED={"config.js","search.html","sw.js","index.html","home.html","social.html","memories.html","comments.html","edit.html","profile.html","payment.html","login.html","signup.html","otp_verify.html","onboarding.html"}
 def main():
     manifest=json.loads((ROOT/"docs/frontend-baseline.json").read_text(encoding="utf-8"))
     for name,item in manifest.items():
@@ -24,7 +24,14 @@ def main():
         a=original.split("<body>")[1].split('<script src="env.js">')[0]
         b=current.split("<body>")[1].split('<script src="env.js">')[0]
         assert a==b, "Search static UI changed"
+    if SOURCE.exists():
+        for name in CHANGED - {"config.js","sw.js"}:
+            if not name.endswith('.html'):continue
+            before=(SOURCE/name).read_text(encoding="utf-8-sig")
+            after=(ROOT/"frontend"/name).read_text(encoding="utf-8-sig")
+            assert re.findall(r"<style>(.*?)</style>",before,re.S)==re.findall(r"<style>(.*?)</style>",after,re.S), "Original CSS changed: "+name
     values=dotenv_values(ROOT/".env",encoding="utf-8-sig")
+    values.update({"TEST_"+k:v for k,v in dotenv_values(ROOT/".env.test",encoding="utf-8-sig").items()})
     secrets=[v for k,v in values.items() if v and len(v)>=8 and any(x in k for x in ["PASSWORD","SECRET","TOKEN"])]
     ignored={".venv","node_modules",".local","backups","uploads","test-uploads","test-results","__pycache__",".pytest_cache"}
     for p in ROOT.rglob("*"):

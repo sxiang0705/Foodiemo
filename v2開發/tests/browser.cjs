@@ -24,6 +24,7 @@ async function mockContext(browser){
   await context.route('**/*',async route=>{
     const u=new URL(route.request().url());
     if(u.hostname!=='127.0.0.1' && u.hostname!=='localhost') return route.abort();
+    if(u.pathname==='/api/me') return route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({detail:'Test unauthenticated'})});
     if(u.pathname.startsWith('/api/')){
       return route.fulfill({status:200,contentType:'application/json',
         headers:{'Access-Control-Allow-Origin':route.request().headers().origin||'*','Access-Control-Allow-Credentials':'true'},
@@ -183,6 +184,7 @@ async function settled(page){
     await page.waitForURL('**/login.html');
     check(page.url().endsWith('login.html'),'UI-01 original login gate preserved');
     // Test-only identity to examine the original shell, no claim of backend login.
+    await context.route('**/api/me',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({email:'fixture@example.invalid',name:'Fixture',is_premium:false,avatar_url:null,preferences:null})}));
     await context.addInitScript(()=>localStorage.setItem('myProfileEmail','fixture@example.invalid'));
     await page.goto(BASE+'/index.html');
     await page.waitForFunction(()=>document.getElementById('swipeWrapper').style.transform==='translateX(-390px)');

@@ -1,3 +1,5 @@
+> 本文件原有段落記錄第一批推薦契約；2026-09-10 新增帳號與照片契約見文末，原「未串接」狀態以新段落為準。
+
 # v2 第一批 API 與推薦提供者
 
 GET /api/restaurants/recommendations?count=3&cursor=...&t=...
@@ -34,3 +36,31 @@ backend/app/recommendation/service.py 的 Provider.select(session, Recommendatio
 
 frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* 後端入口衝突。API 同源，不採用先前 localStorage 的外部後端覆寫值。
 
+
+
+## 2026-09-10 帳號／照片 API
+
+所有受保護 API 以 HttpOnly Cookie `foodiemo_session` 識別使用者。前端 email 不決定身分；不符時 403。未登入 401、缺資料 404、格式錯誤 422、頻率限制 429、寄信／資料庫不可用 503。未知 API 仍為 501。
+
+| 路徑 | 方法與資料 |
+| --- | --- |
+| /api/register | POST JSON email/name/password/phone/dob；寄信成功後回 verification_required，尚不登入 |
+| /api/send_email_code | POST email/purpose（signup 或 reset_password） |
+| /api/verify_email_code | POST email/purpose/code；註冊驗證建立 Cookie；重設用途回一次性 reset_token |
+| /api/login、/api/logout | POST；登入 email/password，登出撤銷當前 Token |
+| /api/reset_password | POST reset_token/new_password；成功撤銷該帳號所有工作階段 |
+| /api/me | GET 會員身分、avatar_url、is_premium、preferences |
+| /api/preferences | PUT version=1、answers 六題 key/value；選項需完全符合原六題 |
+| /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式 |
+| /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；更新須 post_id |
+| /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；ID 以字串傳遞 |
+| /api/posts/{id} | DELETE 整篇紀錄及照片引用 |
+| /api/delete_single_photo | DELETE post_id/photo_url；只刪自己指定的一張 |
+| /api/photos/{id} | GET 作者限定的 JPEG；不公開本機檔案路徑 |
+| /api/add_comment | POST photo_id（沿用原版，值為紀錄 ID）、text；只可於自己紀錄留言 |
+| /api/update_profile_name、/api/upload_avatar | POST multipart name 或 file |
+| /api/check_vip/{email}、/api/upgrade_premium | GET 會員狀態／POST Demo 開通，金額 0、simulated=true |
+
+photo_order 是 JSON 陣列，例：`[{"existing":"/api/photos/12"},{"new":0}]`。new 是 files 順序索引；existing 必須屬於本篇。全部新檔案必須使用一次，不接受重複／他人的照片。未傳順序時以新檔案原順序保存（首頁直接上傳用）。mention_ids 為會員 ID JSON 陣列，最多 10 人。
+
+CaptureMailer 僅由隔離測試注入，HTTP 回應無 OTP preview；正式 SMTP 尚未設定。付款沒有外部金流請求；既有 Google OAuth API 尚未實作。

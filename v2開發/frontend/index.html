@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -75,20 +75,8 @@
     <script src="config.js"></script> 
 <script>
     // --- [0. 防止狂閃阻斷器] ---
-    (function routeGuard() {
-        const userEmail = localStorage.getItem('myProfileEmail');
-        const path = window.location.pathname;
-        const page = path.split("/").pop();
-        if (!userEmail) {
-            if (page !== "login.html" && page !== "signup.html") {
-                window.location.replace("login.html");
-                return;
-            }
-        } else if (page === "login.html" || page === "signup.html") {
-            window.location.replace("index.html");
-            return;
-        }
-    })();
+    // Cookie identity is verified by the shared session loader in config.js.
+
 
     // --- 1. 全域變數 ---
     const swipeWrapper = document.getElementById('swipeWrapper');

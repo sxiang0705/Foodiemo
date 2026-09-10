@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -170,6 +170,13 @@
         const inputExpiry = document.querySelector('input[placeholder="MM/YY"]');
         const inputCvv = document.querySelector('input[placeholder="123"]');
         const cardDisplay = document.querySelector('.card-number');
+        document.querySelectorAll("input").forEach(input=>{input.value='';input.readOnly=true;input.placeholder='Demo 示意';input.autocomplete='off';});
+        cardDisplay.textContent='DEMO · 不會扣款';
+        document.getElementById('btnText').textContent='Demo 開通（不扣款）';
+        const demoNotice=document.createElement('p');
+        demoNotice.textContent='專題示範：不收集信用卡資料，不會產生真實付款。';
+        demoNotice.style.cssText='text-align:center;color:#5D4D40;font-size:13px;margin:12px';
+        payBtn.before(demoNotice);
 
         // 卡號格式化 (0000 0000 0000 0000)
         inputCard.addEventListener('input', e => {
@@ -212,7 +219,7 @@
 
             try {
                 // 發送升級 VIP 請求
-                const response = await fetch(`${API_BASE_URL}/upgrade_premium?email=${email}`, {
+                const response = await fetch(`${API_BASE_URL}/upgrade_premium?email=${encodeURIComponent(email)}`, {
                     method: 'POST'
                 });
                 
@@ -224,7 +231,7 @@
                     const channel = new BroadcastChannel('memory_update');
                     channel.postMessage('updated');
 
-                    alert("Payment Successful! You are now a Premium Member.");
+                    alert("Demo 會員已開通，沒有扣款。");
                     
                     // 執行精準導航回歸
                     forceNavigateBack(); 
@@ -236,7 +243,7 @@
                 alert("Network error, please try again.");
             } finally {
                 document.getElementById('spinner').style.display = 'none';
-                document.getElementById('btnText').innerText = "Pay $9.99 / Month";
+                document.getElementById('btnText').innerText = "Demo 開通（不扣款）";
                 payBtn.disabled = false;
             }
         });

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -112,7 +112,7 @@
             
             <div class="overlay-controls">
                 <button class="control-btn btn-circle" id="tagFriendBtn"><i data-lucide="user"></i></button>
-                <button class="control-btn btn-circle" id="locationBtn"><i data-lucide="map-pin"></i><span class="btn-text">Kaohsiung</span></button>
+                <button class="control-btn btn-circle" id="locationBtn"><i data-lucide="map-pin"></i><span class="btn-text">選擇地點</span></button>
                 <button class="control-btn btn-capsule" id="multiSelectBtn"><i data-lucide="layers"></i><span class="btn-text-static">SELECT MULTIPLE</span></button>
             </div>
         </div>
@@ -127,8 +127,9 @@
     
     <script src="env.js"></script>
     <script src="config.js"></script>
+    <script src="static/api/pickers.js"></script>
     <script>
-        lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
         
         // --- 1. 配置 ---
         const dbName = DB_CONFIG.name;
@@ -160,20 +161,7 @@
 
         // --- 3. 初始化 ---
         function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, dbVersion);
-                request.onupgradeneeded = (e) => {
-                    const database = e.target.result;
-                    const stores = ["posts", "users", "posts_timeline", "user_profile"];
-                    stores.forEach(store => {
-                        if (!database.objectStoreNames.contains(store)) {
-                            database.createObjectStore(store, { keyPath: "id" });
-                        }
-                    });
-                };
-                request.onsuccess = (e) => { db = e.target.result; resolve(db); };
-                request.onerror = (e) => reject(e);
-            });
+            return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
 
         // --- 4. 記憶體管理 ---
@@ -190,8 +178,22 @@
         }
 
         // --- 5. 互動 ---
-        tagFriendBtn.addEventListener('click', () => tagFriendBtn.classList.toggle('active'));
-        locationBtn.addEventListener('click', () => locationBtn.classList.toggle('active'));
+        let selectedPlace=null, selectedMentions=[];
+        function showSelections(){
+            locationBtn.classList.toggle('active',!!selectedPlace);
+            locationBtn.querySelector('.btn-text').textContent=selectedPlace?.name || '選擇地點';
+            tagFriendBtn.classList.toggle('active',selectedMentions.length>0);
+            tagFriendBtn.title=selectedMentions.length ? selectedMentions.map(x=>x.name).join('、') : '標註好友';
+            tagFriendBtn.setAttribute('aria-label',tagFriendBtn.title);
+        }
+        tagFriendBtn.addEventListener('click',async()=>{
+            const values=await FoodiemoPickers.choose('members',selectedMentions);
+            if(values!==null){selectedMentions=values;showSelections();}
+        });
+        locationBtn.addEventListener('click',async()=>{
+            const values=await FoodiemoPickers.choose('locations',selectedPlace?[selectedPlace]:[]);
+            if(values!==null){selectedPlace=values[0]||null;showSelections();}
+        });
 
         document.getElementById('imageLoader').addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
@@ -237,7 +239,7 @@
                         </div>`;
             }).join('');
             feedGrid.innerHTML = html;
-            lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
         }
 
         window.handleGridClick = (idx) => {
@@ -277,7 +279,7 @@
 
         shareBtn.addEventListener('click', async () => {
             if (selectedIndices.length === 0) { alert("請選取照片"); return; }
-            const userEmail = localStorage.getItem('myProfileEmail') || 'test@example.com';
+            const userEmail = localStorage.getItem('myProfileEmail');
             shareBtn.disabled = true;
             shareBtn.textContent = "傳送中...";
 
@@ -286,31 +288,21 @@
                 formData.append("email", userEmail);
                 if (editPostId) formData.append("post_id", editPostId);
 
-                // --- 🌟 採集地點與標註 ---
-                formData.append("caption", ""); // 不使用文案，固定為空
-                
-                if (locationBtn.classList.contains('active')) {
-                    const locText = locationBtn.querySelector('.btn-text').innerText;
-                    formData.append("location", locText);
-                }
-
-                if (tagFriendBtn.classList.contains('active')) {
-                    formData.append("at_user", "Tagged"); // 模擬感：標記狀態
-                }
-
-                const keepUrls = [];
-                const uploadPromises = selectedIndices.map(async (idx) => {
-                    const item = pendingImages[idx];
-                    if (item.type === 'url') {
-                        keepUrls.push(item.data);
-                    } else {
-                        let file = item.data;
-                        if (file.size > 2 * 1024 * 1024) file = await compressImage(file);
-                        formData.append("files", file);
+                formData.append("caption", "");
+                if(selectedPlace)formData.append("restaurant_id",selectedPlace.id);
+                formData.append("mention_ids",JSON.stringify(selectedMentions.map(x=>x.id)));
+                const photoOrder=[];let fileIndex=0;
+                for(const idx of selectedIndices){
+                    const item=pendingImages[idx];
+                    if(item.type==='url')photoOrder.push({existing:item.data});
+                    else{
+                        let file=item.data;
+                        if(file.size>2*1024*1024)file=await compressImage(file);
+                        formData.append("files",file);
+                        photoOrder.push({new:fileIndex++});
                     }
-                });
-                await Promise.all(uploadPromises);
-                formData.append("keep_urls", JSON.stringify(keepUrls));
+                }
+                formData.append("photo_order",JSON.stringify(photoOrder));
 
                 const endpoint = editPostId ? "update_post" : "upload_memory_post";
                 // 🔹 加固路徑拼接：防止雙斜線導致的 405 錯誤
@@ -367,8 +359,8 @@
         backBtn.onclick = (e) => {
             e.preventDefault();
             if (shareBtn.disabled) return;
-            if (pendingImages.length > 0 && confirm("要捨棄內容並返回嗎？")) goHome();
-            else goHome();
+            if (pendingImages.length === 0 || confirm("要捨棄內容並返回嗎？")) goHome();
+            else return;
         };
 
         window.hardReset = async () => {
@@ -390,6 +382,7 @@
                 pageTitle.innerText = "Edit Post";
                 try {
                     const res = await fetch(`${API_BASE_URL}/get_post/${editPostId}`);
+                    if (!res.ok) throw new Error("讀取紀錄失敗");
                     const post = await res.json();
                     if (post.imageUrls) {
                         originalUrls = post.imageUrls;
@@ -398,7 +391,9 @@
                             selectedIndices.push(pendingImages.length - 1);
                         });
                     }
-                    if (post.at_user === 'Tagged') tagFriendBtn.classList.add('active');
+                    selectedMentions=post.mentions||[];
+                    selectedPlace=post.restaurant_id?{id:post.restaurant_id,name:post.location}:null;
+                    showSelections();
                     if (post.location) {
                         locationBtn.classList.add('active');
                         locationBtn.querySelector('.btn-text').innerText = post.location;

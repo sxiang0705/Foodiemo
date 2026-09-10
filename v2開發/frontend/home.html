@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -142,31 +142,7 @@
 
         // 2. 資料庫初始化 (IndexedDB)
         function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, dbVersion);
-
-                request.onupgradeneeded = (e) => {
-                    const database = e.target.result;
-                    console.log("🛠️ 正在更新資料庫結構...");
-                    const stores = ["posts", "users", "posts_timeline", "user_profile"];
-                    stores.forEach(store => {
-                        if (!database.objectStoreNames.contains(store)) {
-                            database.createObjectStore(store, { keyPath: "id" });
-                        }
-                    });
-                };
-
-                request.onsuccess = (e) => {
-                    db = e.target.result;
-                    console.log("✅ IndexedDB 已連線");
-                    resolve(db);
-                };
-
-                request.onerror = (e) => {
-                    console.error("❌ DB開啟失敗:", e.target.error);
-                    reject(e.target.error);
-                };
-            });
+            return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
 
         // 3. 核心功能：載入最新照片 (對接 FastAPI)
@@ -182,6 +158,7 @@
 
                 // [1] 嘗試從 API 抓取
                 const response = await fetch(`${API_BASE_URL}/get_memories?email=${myEmail}&t=${Date.now()}`);
+                if (!response.ok) throw new Error("讀取照片失敗");
                 if (response.ok) {
                     const result = await response.json();
                     const posts = Array.isArray(result) ? result : (result.data || []);
@@ -190,23 +167,8 @@
                     }
                 }
             } catch (e) {
-                console.warn("⚠️ API 抓取失敗，準備嘗試本地備案:", e);
-            }
-
-            // [2] 本地備案：如果 API 沒抓到，從 IndexedDB 抓
-            if (!latestPost && db) {
-                try {
-                    const tx = db.transaction("posts_timeline", "readonly");
-                    const store = tx.objectStore("posts_timeline");
-                    const allPosts = await new Promise(res => {
-                        store.getAll().onsuccess = (e) => res(e.target.result || []);
-                    });
-                    if (allPosts.length > 0) {
-                        latestPost = allPosts.sort((a, b) => b.timestamp - a.timestamp)[0];
-                    }
-                } catch (dbErr) {
-                    console.error("❌ 本地資料庫讀取失敗:", dbErr);
-                }
+                imgElement.alt = "讀取照片失敗，請稍後重試";
+                return;
             }
 
             // [3] 渲染大圖
@@ -266,13 +228,13 @@
             const formData = new FormData();
             const myEmail = localStorage.getItem('myProfileEmail') || '';
             
+            try {
             // 支援多圖或單圖上傳
             for (let i = 0; i < files.length; i++) {
-                formData.append('files', files[i]);
+                formData.append('files', await window.prepareFoodiemoPhoto(files[i]));
             }
             formData.append('email', myEmail);
 
-            try {
                 const response = await fetch(`${API_BASE_URL}/upload_memory_post`, {
                     method: 'POST',
                     body: formData
@@ -307,14 +269,15 @@
 
         // 6. 跨頁面通訊監聽
         channel.onmessage = (event) => {
-            if (event.data === 'updated' || event.data.action === 'updated') {
+            if (event.data === 'updated' || event.data?.action === 'updated' || event.data?.type === 'updated') {
                 loadLatestPhoto();
                 loadUserProfile();
             }
         };
 
         // 7. 啟動
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
+            await window.FoodiemoSessionReady;
             initDB().then(() => {
                 loadUserProfile();
                 loadLatestPhoto();

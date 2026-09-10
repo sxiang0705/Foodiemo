@@ -6,9 +6,11 @@ function resolveApiBaseUrl() {
 
 const DB_CONFIG = {
     name: "FoodiemoV2DB",
-    version: 19, // 統一版本號
+    version: 20, // 統一版本號
     apiUrl: resolveApiBaseUrl()
 };
+
+window.DB_CONFIG = DB_CONFIG;
 
 const ORIGINAL_FETCH = window.fetch.bind(window);
 
@@ -104,6 +106,10 @@ function initDB() {
 
         request.onupgradeneeded = (e) => {
             const db = e.target.result;
+            for (const name of ["posts", "users"]) {
+                if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, {keyPath:"id"});
+            }
+            if (db.objectStoreNames.contains("user_profile") && e.target.transaction.objectStore("user_profile").keyPath !== null) db.deleteObjectStore("user_profile");
             // 建立日曆回憶存儲
             if (!db.objectStoreNames.contains("all_photos")) {
                 db.createObjectStore("all_photos", { autoIncrement: true });
@@ -149,3 +155,51 @@ async function saveUserData(name, avatarBlob) {
         return false;
     }
 }
+
+window.FoodiemoInitDB = initDB;
+window.escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+
+window.refreshFoodiemoSession = async function(redirect = true) {
+    try {
+        const response = await ORIGINAL_FETCH(DB_CONFIG.apiUrl + '/me', {credentials:'include',cache:'no-store'});
+        if (response.status === 401) {
+            localStorage.removeItem('myProfileEmail');
+            localStorage.removeItem('myProfileName');
+            localStorage.removeItem('isPremiumUser');
+            clearStoredAvatarUrl();
+            if (redirect) window.top.location.replace('login.html');
+            return null;
+        }
+        if (!response.ok) throw new Error('帳號資料暫時讀取失敗，請稍後重試');
+        const user = await response.json();
+        localStorage.setItem('myProfileEmail',user.email);
+        localStorage.setItem('myProfileName',user.name);
+        localStorage.setItem('isPremiumUser',String(user.is_premium));
+        setStoredAvatarUrl(user.avatar_url);
+        return user;
+    } catch (error) {
+        window.dispatchEvent(new CustomEvent('foodiemo-session-error',{detail:error.message}));
+        return null;
+    }
+};
+const publicPages = ['login.html','signup.html','forgot-password.html','otp_verify.html','reset_password.html','search.html'];
+window.FoodiemoSessionReady = publicPages.includes(location.pathname.split('/').pop())
+    ? Promise.resolve(null) : window.refreshFoodiemoSession();
+
+// Match the original editor's upload resizing for the direct shutter/gallery path.
+window.prepareFoodiemoPhoto = function(file) {
+    if (file.size <= 2*1024*1024) return Promise.resolve(file);
+    return new Promise((resolve,reject) => {
+        const url=URL.createObjectURL(file),img=new Image();
+        img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('無法讀取照片'));};
+        img.onload=()=>{
+            URL.revokeObjectURL(url);
+            const scale=Math.min(1,1280/Math.max(img.naturalWidth,img.naturalHeight));
+            const canvas=document.createElement('canvas');
+            canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+            canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+            canvas.toBlob(blob=>blob?resolve(new File([blob],file.name,{type:'image/jpeg'})):reject(new Error('照片處理失敗')),'image/jpeg',0.8);
+        };
+        img.src=url;
+    });
+};

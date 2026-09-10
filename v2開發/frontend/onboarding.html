@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 
 <head>
@@ -272,14 +272,7 @@
 
         // 初始化資料庫連線
         function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, dbVersion);
-                request.onsuccess = (e) => {
-                    db = e.target.result;
-                    resolve(db);
-                };
-                request.onerror = (e) => reject(e.target.error);
-            });
+            return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
 
         // --- 2. 資料設定 ---
@@ -352,17 +345,19 @@
 
             // 紀錄這一輪的選擇
             const choice = steps[currentStep][selectedSide];
-            userPreferences.push({
-                key: steps[currentStep].key,
-                value: choice
-            });
+            userPreferences[currentStep]={key:steps[currentStep].key,value:choice};
 
             if (currentStep < steps.length - 1) {
                 currentStep++;
                 renderStep();
             } else {
                 // ★ 最後一步：將所有偏好存入資料庫 ★
-                await savePreferencesToDB();
+                nextBtn.disabled=true;
+                try{
+                    const response=await fetch(DB_CONFIG.apiUrl+'/preferences',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:1,answers:Object.fromEntries(userPreferences.map(x=>[x.key,x.value]))})});
+                    if(!response.ok)throw new Error();
+                    await savePreferencesToDB();
+                }catch(e){alert('偏好尚未保存，請再試一次');nextBtn.disabled=false;return;}
 
                 window.parent.postMessage('unlockSwiping', '*');
                 // 跳轉至首頁，並指定回到 social 分頁

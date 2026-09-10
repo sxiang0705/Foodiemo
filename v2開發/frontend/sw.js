@@ -1,5 +1,5 @@
 // 定義快取名稱
-const CACHE_NAME = 'foodiemo-v2-static-v1';
+const CACHE_NAME = 'foodiemo-v2-static-v2';
 
 // 定義需要快取的資源清單
 const ASSETS_TO_CACHE = [
@@ -25,6 +25,7 @@ const ASSETS_TO_CACHE = [
   './env.js',
   './config.js',
   './static/api/client.js',
+  './static/api/pickers.js',
   './assets/restaurant-placeholder.svg',
   './manifest.json',
 
