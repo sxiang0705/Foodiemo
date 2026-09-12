@@ -1,6 +1,6 @@
 # Foodiemo v2
 
-已保留原版介面並串接 PostgreSQL：三卡推薦、Email 帳號、六題偏好、照片、地點／會員標註、留言及 Demo 會員。SMTP 尚未設定，實信寄送待驗收；完整月度回顧仍待討論。詳見 [2026-09-10 驗收紀錄](docs/test-report-2026-09-10.md)。
+已保留原版介面並串接 PostgreSQL：三卡推薦、Email 帳號、六題偏好、照片、地點／會員標註、留言及 Demo 會員。SMTP 已設定並通過兩封實信提交測試，使用者已確認收件；完整月度回顧仍待討論。詳見 [2026-09-10 驗收紀錄](docs/test-report-2026-09-10.md)。
 
 ## 啟動
 
@@ -21,7 +21,7 @@ Tunnel 使用 .local/known_hosts 中已核對的主機金鑰，未登錄時先�
 ~~~
 
 - 原版推薦頁：http://127.0.0.1:8002/search.html
-- 原版主入口：http://127.0.0.1:8002/ （Cookie 驗證；新註冊需先完成 SMTP 設定）
+- 原版主入口：http://127.0.0.1:8002/ （Cookie 驗證；本機 SMTP 已設定）
 - 健康檢查：http://127.0.0.1:8002/api/health
 - v2 測試 API 預設 8003，Tunnel 預設 55433，不佔用 v1 的 8000／55432。
 
@@ -54,3 +54,5 @@ integration 必須先準備 .env.test 指向 foodiemo_v2_test，包含專用角�
 
 詳見 [開發流程](v2開發流程.md)、[測試流程](v2測試流程.md)、[前端基線](docs/frontend-baseline.md)、[API 契約](docs/api.md) 與 [本批測試紀錄](docs/test-report-2026-09-09.md)。
 
+
+SMTP 最新進度見 [2026-09-12 實信測試](docs/smtp-test-2026-09-12.md)。

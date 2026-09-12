@@ -129,3 +129,26 @@ def test_frontend_static_and_secrets(client):
     assert client.get("/backend/app/main.py").status_code==404
     assert "unsafe-inline" in client.get("/").headers["Content-Security-Policy"]
 
+
+
+@pytest.mark.parametrize("host,password,expected",[("smtp.gmail.com","abcd efgh ijkl mnop","abcdefghijklmnop"),("smtp.example.test","password with spaces","password with spaces")])
+def test_smtp_chinese_hostname_and_password_spacing(monkeypatch,host,password,expected):
+    from dataclasses import replace
+    from app.core import mail
+    captured={}
+    class SMTP:
+        def __init__(self,*args,**kwargs):captured.update(kwargs)
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def ehlo(self):pass
+        def starttls(self,**kwargs):captured['tls']=True
+        def login(self,user,secret):captured['password']=secret
+        def send_message(self,message):captured['message']=message
+    monkeypatch.setattr(mail.socket,'getfqdn',lambda:'測試電腦')
+    monkeypatch.setattr(mail.smtplib,'SMTP',SMTP)
+    settings=replace(SETTINGS,smtp_host=host,smtp_port=587,smtp_user='sender@example.test',smtp_password=password,smtp_from='sender@example.test')
+    mail.SMTPMailer(settings).send('recipient@example.test','1234','signup')
+    assert captured['local_hostname'].isascii()
+    assert captured['password']==expected and captured['tls']
+    assert captured['message']['To']=='recipient@example.test'
+    assert '1234' in captured['message'].get_content()
