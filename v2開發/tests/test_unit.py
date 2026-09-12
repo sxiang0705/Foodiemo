@@ -152,3 +152,26 @@ def test_smtp_chinese_hostname_and_password_spacing(monkeypatch,host,password,ex
     assert captured['password']==expected and captured['tls']
     assert captured['message']['To']=='recipient@example.test'
     assert '1234' in captured['message'].get_content()
+
+
+def test_tunnel_reconnects_after_transport_loss():
+    import importlib.util
+    spec=importlib.util.spec_from_file_location('v2_tunnel',ROOT/'scripts/tunnel.py')
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    calls=[]
+    class SSH:
+        def close(self):calls.append('close')
+    def connect():calls.append('connect');return SSH()
+    def serve(ssh):
+        calls.append('serve')
+        if calls.count('serve')==2:raise KeyboardInterrupt()
+    with pytest.raises(KeyboardInterrupt):module.reconnect(connect,serve,lambda seconds:calls.append('wait'))
+    assert calls==['connect','serve','close','wait','connect','serve','close']
+
+def test_tunnel_does_not_retry_bad_credentials():
+    import importlib.util,paramiko
+    spec=importlib.util.spec_from_file_location('v2_tunnel',ROOT/'scripts/tunnel.py')
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    def connect():raise paramiko.AuthenticationException()
+    with pytest.raises(paramiko.AuthenticationException):
+        module.reconnect(connect,lambda ssh:None,lambda seconds:pytest.fail('Must not retry credentials'))

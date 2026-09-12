@@ -17,6 +17,8 @@ if __name__ == "__main__":
         if not (ROOT / ".env.test").exists():
             sys.exit("Missing isolated .env.test")
         load_dotenv(ROOT / ".env.test", override=True, encoding="utf-8-sig")
+        for key in ["SMTP_HOST","SMTP_USERNAME","SMTP_PASSWORD","SMTP_FROM_EMAIL"]:
+            os.environ[key]=""  # Integration tests must never inherit the local real mail transport.
         from app.core.config import Settings
         from app.core.safety import assert_test_target
         assert_test_target(Settings.from_env())

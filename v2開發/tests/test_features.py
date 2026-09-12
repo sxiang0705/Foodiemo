@@ -73,7 +73,8 @@ def test_auth_reset_revokes_sessions_and_token(setup):
 
 def test_mail_failure_rolls_back_registration(setup):
     c,mail,db,app=setup
-    app.state.mailer=SMTPMailer(Settings.from_env())
+    from dataclasses import replace
+    app.state.mailer=SMTPMailer(replace(Settings.from_env(),smtp_host="",smtp_from=""))
     r=c.post('/api/register',json=dict(email='no-mail@example.test',name='No Mail',password='password-123'))
     assert r.status_code==503
     assert db.execute(text("SELECT count(*) FROM users WHERE email='no-mail@example.test'")).scalar()==0
