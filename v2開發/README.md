@@ -69,3 +69,25 @@ SMTP 最新進度見 [2026-09-12 實信測試](docs/smtp-test-2026-09-12.md)。
 手機使用 `http://電腦的WiFiIPv4位址:8002`，不使用 127.0.0.1。預設啟動仍僅綁定 127.0.0.1；LAN 模式僅接受明確的 RFC1918 IPv4，不開放測試資料庫模式，也不改變 Tunnel 的 loopback 綁定。兩個預覽可使用不同綁定位址並存。
 
 Windows 防火牆需允許指定 Wi-Fi 介面、LAN 位址、本地子網及 TCP 8002；不需路由器埠轉送。網路 IP 改變時需重啟 LAN 預覽並更新規則。HTTP LAN 可先驗證表單、相簿與互動；Service Worker、PWA 等需要安全來源的能力另以 HTTPS 驗收。手機使用另一個網站來源，因此需要重新登入。
+
+## 本機 HTTPS 相機預覽
+
+要在 iPhone Safari 使用中間的即時鏡頭，LAN 預覽必須使用 HTTPS。先保持 VPN 與 SSH Tunnel 運作，在 PowerShell 執行：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\make_https_cert.ps1 -LanIp 192.168.0.22
+```
+
+此指令會在 `.local/https/` 建立本機 Root CA、伺服器憑證與私鑰；`.local/` 已被 Git 忽略。若 Windows 防火牆尚未建立規則，請用系統管理員 PowerShell 執行：
+
+```powershell
+New-NetFirewallRule -DisplayName 'Foodiemo-v2-LAN-8443' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8443 -LocalAddress 192.168.0.22 -RemoteAddress LocalSubnet -InterfaceAlias Wi-Fi -Profile Any
+```
+
+啟動 HTTPS 預覽：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run.py --lan-ip 192.168.0.22 --port 8443 --ssl-certfile .local/https/foodiemo-local-server-cert.pem --ssl-keyfile .local/https/foodiemo-local-server-key.pem
+```
+
+把 `.local/https/foodiemo-local-root.cer` 傳到 iPhone，點開後安裝描述檔，再到「設定 → 一般 → 關於本機 → 憑證信任設定」啟用此 Root CA。完成後用 Safari 開啟 `https://192.168.0.22:8443/index.html`，重新登入並允許相機權限。憑證只適用於目前這台電腦與目前 LAN IP；IP 改變時重新產生憑證並更新防火牆規則。
