@@ -56,3 +56,16 @@ integration 必須先準備 .env.test 指向 foodiemo_v2_test，包含專用角�
 
 
 SMTP 最新進度見 [2026-09-12 實信測試](docs/smtp-test-2026-09-12.md)。
+
+
+## 同 Wi-Fi 手機測試
+
+在電腦保持 VPN 與 SSH Tunnel 運行時，可另開 LAN 預覽：
+
+```powershell
+./.venv/Scripts/python.exe scripts/run.py --lan-ip 電腦的WiFiIPv4位址
+```
+
+手機使用 `http://電腦的WiFiIPv4位址:8002`，不使用 127.0.0.1。預設啟動仍僅綁定 127.0.0.1；LAN 模式僅接受明確的 RFC1918 IPv4，不開放測試資料庫模式，也不改變 Tunnel 的 loopback 綁定。兩個預覽可使用不同綁定位址並存。
+
+Windows 防火牆需允許指定 Wi-Fi 介面、LAN 位址、本地子網及 TCP 8002；不需路由器埠轉送。網路 IP 改變時需重啟 LAN 預覽並更新規則。HTTP LAN 可先驗證表單、相簿與互動；Service Worker、PWA 等需要安全來源的能力另以 HTTPS 驗收。手機使用另一個網站來源，因此需要重新登入。
