@@ -196,6 +196,8 @@
             const win = frame.contentWindow;
             ['touchstart', 'touchmove', 'touchend'].forEach(type => {
                 win.addEventListener(type, (e) => {
+                    // Keep native taps on links/buttons inside the iframe unobstructed.
+                    if (e.target.closest?.('a, button, input, textarea, select, [role=button], .shutter-btn')) return;
                     if (isScrollLocked) return;
                     const clonedEvent = new TouchEvent(type, {
                         touches: Array.from(e.touches),
