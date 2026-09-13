@@ -3,12 +3,35 @@ const assert=require('node:assert/strict');
 (async()=>{const b=await chromium.launch({channel:'msedge',headless:true});try{
 for(const width of [390,412]){
 const c=await b.newContext({viewport:{width,height:844},hasTouch:true,isMobile:true,serviceWorkers:'block'});
-await c.route('**/*',route=>{const u=new URL(route.request().url());if(u.pathname==='/api/me')return route.fulfill({json:{email:'fixture@example.test',name:'Fixture',is_premium:false}});if(u.pathname==='/api/get_memories')return route.fulfill({json:[]});if(u.hostname!=='127.0.0.1')return route.abort();return route.continue()});
+let recordCalls=0;
+await c.route('**/*',route=>{const u=new URL(route.request().url());if(u.pathname==='/api/me')return route.fulfill({json:{email:'fixture@example.test',name:'Fixture',is_premium:false}});if(u.pathname==='/api/get_memories'){recordCalls++;return new Promise(resolve=>setTimeout(resolve,100)).then(()=>route.fulfill({json:[]}));}if(u.hostname!=='127.0.0.1')return route.abort();return route.continue()});
 const p=await c.newPage();await p.goto('http://127.0.0.1:8002/index.html');await p.waitForTimeout(500);
+recordCalls=0;
+await p.evaluate(()=>Promise.all([fetch('/api/get_memories?t=1').then(r=>r.json()),fetch('/api/get_memories?t=2').then(r=>r.json())]));
+assert.equal(recordCalls,1);
+await p.evaluate(()=>fetch('/api/get_memories?t=3').then(r=>r.json()));assert.equal(recordCalls,2);
+console.log('PASS in-flight record requests shared without stale cache');
+await p.evaluate(()=>{
+ const target=document.body,t=(x,y)=>new Touch({identifier:1,target,clientX:x,clientY:y});
+ window.dispatchEvent(new TouchEvent('touchstart',{touches:[t(180,200)]}));
+ window.dispatchEvent(new TouchEvent('touchmove',{touches:[t(184,320)]}));
+ window.dispatchEvent(new TouchEvent('touchend',{changedTouches:[t(184,320)]}));
+});
+assert.equal(await p.locator('#swipeWrapper').evaluate(el=>el.style.transform),'translateX(-'+width+'px)');
+assert.equal(await p.locator('#dragOverlay').evaluate(el=>getComputedStyle(el).pointerEvents),'none');
+console.log('PASS '+width+'px vertical swipe does not move shell');
 const pencil=p.frameLocator('iframe[src="home.html"]').locator('a[href="edit.html?from=home"]');
 await pencil.evaluate(el=>{const t=new Touch({identifier:1,target:el,clientX:300,clientY:750});el.dispatchEvent(new TouchEvent('touchstart',{touches:[t],changedTouches:[t],bubbles:true}));});
 assert.equal(await p.locator('#dragOverlay').evaluate(el=>getComputedStyle(el).pointerEvents),'none');
 await pencil.tap();await p.waitForURL('**/edit.html?from=home');assert.equal(await p.locator('#shareBtn').innerText(),'Finish');
-await p.locator('#backBtn').tap();await p.waitForURL('**/index.html');console.log('PASS '+width+'px pencil tap, no overlay interception, editor and Back');
+assert.equal(await p.locator('#choosePhotosBtn').isVisible(),true);
+const chooserEvent=p.waitForEvent('filechooser');await p.locator('#choosePhotosBtn').tap();
+const chooser=await chooserEvent;
+assert.equal(chooser.isMultiple(),true);
+await chooser.setFiles(require('path').resolve(__dirname,'../frontend/IMG_1940.jpg'));
+await p.waitForSelector('#feedGrid .grid-item img');
+const stable=await p.evaluate(()=>{const before=createdUrls.size;handleGridClick(0);handleGridClick(0);return createdUrls.size===before;});
+assert.equal(stable,true);console.log('PASS '+width+'px album chooser, thumbnail and reused preview');
+p.once('dialog',d=>d.accept());await p.locator('#backBtn').tap();await p.waitForURL('**/index.html');console.log('PASS '+width+'px pencil tap, no overlay interception, editor and Back');
 await c.close();
 }}finally{await b.close()}})().catch(e=>{console.error(e.message);process.exitCode=1});

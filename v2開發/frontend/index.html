@@ -86,6 +86,7 @@
     let isScrollLocked = false; 
     let startX = 0;
     let currentX = 0;
+    let startY=0, gestureAxis=null;
     let isDragging = false;
     let currentIndex = 1; // 預設 Home
 
@@ -128,9 +129,12 @@
     // --- 3. 觸摸事件攔截與處理 ---
     window.addEventListener('touchstart', (e) => {
         if (isScrollLocked) return;
+        if (e.touches.length !== 1) return;
         startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        gestureAxis=null;
         isDragging = true;
-        swipeWrapper.style.transition = 'none';
+
     }, { passive: true });
 
     window.addEventListener('touchmove', (e) => {
@@ -138,6 +142,14 @@
         
         currentX = e.touches[0].clientX;
         const diff = currentX - startX;
+        const dy=e.touches[0].clientY-startY;
+        if (!gestureAxis) {
+            if (Math.max(Math.abs(diff),Math.abs(dy))<12) return;
+            gestureAxis=Math.abs(diff)>Math.abs(dy)*1.4?'horizontal':'vertical';
+        }
+        if (gestureAxis!=='horizontal') return;
+        swipeWrapper.style.transition='none';
+        overlay.style.pointerEvents='auto';
         const baseOffset = -currentIndex * window.innerWidth;
         
         let moveX = baseOffset + diff;
@@ -154,6 +166,8 @@
         if (!isDragging || isScrollLocked) return;
         isDragging = false;
         
+        overlay.style.pointerEvents='none';
+        if (gestureAxis!=='horizontal') return;
         const diff = e.changedTouches[0].clientX - startX;
         const threshold = window.innerWidth / 5; // 提高靈敏度，1/5 螢幕就翻頁
 
@@ -163,6 +177,11 @@
         }
         
         goToPage(currentIndex);
+    });
+
+    window.addEventListener('touchcancel',()=>{
+        const moved=gestureAxis==='horizontal';isDragging=false;gestureAxis=null;
+        overlay.style.pointerEvents='none';if(moved)goToPage(currentIndex,false);
     });
 
     // --- 4. 初始化邏輯 ---
@@ -188,13 +207,17 @@
     document.addEventListener('DOMContentLoaded', bootApp);
 
     // 視窗大小改變時重新校準（防止旋轉手機後跑位）
-    window.addEventListener('resize', () => goToPage(currentIndex, false));
+    let lastViewportWidth=window.innerWidth;
+    window.addEventListener('resize', () => {
+        if(window.innerWidth===lastViewportWidth)return; // Safari toolbar height changes are not page rotation.
+        lastViewportWidth=window.innerWidth;goToPage(currentIndex,false);
+    });
 
     // 處理 iframe 內部手勢穿透
     window.onload = () => {
         frames.forEach(frame => {
             const win = frame.contentWindow;
-            ['touchstart', 'touchmove', 'touchend'].forEach(type => {
+            ['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(type => {
                 win.addEventListener(type, (e) => {
                     // Keep native taps on links/buttons inside the iframe unobstructed.
                     if (e.target.closest?.('a, button, input, textarea, select, [role=button], .shutter-btn')) return;
@@ -205,7 +228,7 @@
                     });
                     window.dispatchEvent(clonedEvent);
 
-                    if (type === 'touchstart') overlay.style.pointerEvents = 'auto';
+
                     if (type === 'touchend') overlay.style.pointerEvents = 'none';
                 }, { passive: true });
             });

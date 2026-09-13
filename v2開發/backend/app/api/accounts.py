@@ -21,7 +21,8 @@ def connection(request:Request):
         raise
     else:
         from app.core.storage import collect_files
-        try:collect_files(request.app)
+        try:
+            if request.method not in ("GET","HEAD","OPTIONS"):collect_files(request.app)
         except Exception:pass  # Committed references are safe; retry garbage collection on the next request.
 def require_secret(request):
     secret=request.app.state.settings.app_secret

@@ -25,10 +25,21 @@ window.fetch = function(resource, options = {}) {
         return ORIGINAL_FETCH(resource, options);
     }
 
-    return ORIGINAL_FETCH(resource, {
-        ...options,
-        credentials: options.credentials || "include"
-    });
+    const init={...options,credentials:options.credentials || "include"};
+    // The three home frames can request the same records concurrently. Share only
+    // the in-flight response, never a persistent cache, and give each reader a clone.
+    if (typeof resource==='string' && (options.method||'GET').toUpperCase()==='GET' && !options.signal) {
+        const url=new URL(resource,location.href);
+        if (url.origin===location.origin && url.pathname==='/api/get_memories') {
+            let owner=window;
+            try { if(window.top.location.origin===location.origin)owner=window.top; } catch(e) {}
+            const requests=owner.FoodiemoRecordRequests ||= new Map();
+            url.searchParams.delete('t');url.searchParams.sort();const key=url.href;
+            if(!requests.has(key))requests.set(key,ORIGINAL_FETCH(resource,init).finally(()=>requests.delete(key)));
+            return requests.get(key).then(response=>response.clone());
+        }
+    }
+    return ORIGINAL_FETCH(resource,init);
 };
 
 const DEFAULT_AVATAR_URL =
@@ -184,7 +195,7 @@ window.refreshFoodiemoSession = async function(redirect = true) {
 };
 const publicPages = ['login.html','signup.html','forgot-password.html','otp_verify.html','reset_password.html','search.html'];
 window.FoodiemoSessionReady = publicPages.includes(location.pathname.split('/').pop())
-    ? Promise.resolve(null) : window.refreshFoodiemoSession();
+    ? Promise.resolve(null) : (window.parent!==window && window.parent.FoodiemoSessionReady ? window.parent.FoodiemoSessionReady : window.refreshFoodiemoSession());
 
 // Match the original editor's upload resizing for the direct shutter/gallery path.
 window.prepareFoodiemoPhoto = function(file) {

@@ -9,7 +9,7 @@
     <meta name="mobile-web-app-capable" content="yes">
         
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
         /* --- 1. 基礎設定 --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -105,7 +105,7 @@
     <div id="contentArea">
         <div class="main-preview-container">
             <div id="emptyPlaceholder" class="empty-placeholder">
-                <i data-lucide="image" style="width:48px; height:48px; opacity:0.2;"></i>
+                <button type="button" id="choosePhotosBtn" style="border:0;background:transparent;color:#9C7C66;font:inherit;padding:24px;cursor:pointer">＋ 選擇手機照片<br><small>開啟相簿，選取後顯示縮圖</small></button>
             </div>
             
             <img id="mainPreviewImg" src="" alt="Preview">
@@ -129,7 +129,11 @@
     <script src="config.js"></script>
     <script src="static/api/pickers.js"></script>
     <script>
-        if (window.lucide) lucide.createIcons();
+        function renderLocalIcons() {
+            const paths={user:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>','map-pin':'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/>',layers:'<path d="m12 3 10 5-10 5L2 8Z M2 12l10 5 10-5 M2 16l10 5 10-5"/>','image-plus':'<path d="M16 3H3v18h18V8 M18 2v6 M15 5h6 M3 16l6-6 8 11"/>'};
+            document.querySelectorAll('[data-lucide]').forEach(el=>{const path=paths[el.dataset.lucide];if(path)el.outerHTML='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">'+path+'</svg>';});
+        }
+        renderLocalIcons();
         
         // --- 1. 配置 ---
         const dbName = DB_CONFIG.name;
@@ -167,7 +171,9 @@
         // --- 4. 記憶體管理 ---
         function getImageUrl(item) {
             if (item.type === 'url') return item.data;
+            if (item.previewUrl) return item.previewUrl;
             const url = URL.createObjectURL(item.data);
+            item.previewUrl = url;
             createdUrls.add(url);
             return url;
         }
@@ -195,18 +201,21 @@
             if(values!==null){selectedPlace=values[0]||null;showSelections();}
         });
 
+        document.getElementById('choosePhotosBtn').onclick=()=>document.getElementById('imageLoader').click();
         document.getElementById('imageLoader').addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-            for (const file of files) {
-                pendingImages.push({ type: 'file', data: file });
-                const newIdx = pendingImages.length - 1;
-                if (!selectedIndices.includes(newIdx)) selectedIndices.push(newIdx);
-            }
-            currentMainIndex = pendingImages.length - 1;
-            renderMainPreview();
-            renderGrid();
-            document.getElementById('imageLoader').value = ''; 
+            const files=Array.from(e.target.files);
+            if(!files.length)return;
+            if(pendingImages.length+files.length>10){alert('每篇最多選擇 10 張照片');e.target.value='';return;}
+            const choose=document.getElementById('choosePhotosBtn'),label=choose.innerHTML;
+            shareBtn.disabled=true;choose.disabled=true;choose.textContent='照片處理中…';
+            try {
+                const prepared=[];
+                for(const file of files)prepared.push(await window.prepareFoodiemoPhoto(file));
+                for(const file of prepared){pendingImages.push({type:'file',data:file});selectedIndices.push(pendingImages.length-1);}
+                currentMainIndex=pendingImages.length-1;
+                renderMainPreview();renderGrid();
+            }catch(error){alert(error.message || '照片讀取失敗，請重新選擇');}
+            finally{e.target.value='';shareBtn.disabled=false;choose.disabled=false;choose.innerHTML=label;}
         });
 
         // --- 6. 渲染邏輯 ---
@@ -214,7 +223,7 @@
             if (currentMainIndex !== -1 && pendingImages[currentMainIndex]) {
                 emptyPlaceholder.style.display = 'none';
                 mainPreviewImg.style.display = 'block';
-                if (mainPreviewImg.dataset.lastUrl) URL.revokeObjectURL(mainPreviewImg.dataset.lastUrl);
+
                 const newUrl = getImageUrl(pendingImages[currentMainIndex]);
                 mainPreviewImg.src = newUrl;
                 mainPreviewImg.dataset.lastUrl = newUrl;
@@ -225,7 +234,7 @@
         }
 
         function renderGrid() {
-            let html = `<div class="grid-item camera-upload-item" onclick="document.getElementById('imageLoader').click()"><i data-lucide="image-plus"></i></div>`;
+            let html = `<div class="grid-item camera-upload-item" role="button" tabindex="0" aria-label="選擇照片" onclick="document.getElementById('imageLoader').click()"><span aria-hidden="true" style="font-size:32px">＋</span><span style="font-size:12px">選擇照片</span></div>`;
             html += pendingImages.map((item, idx) => {
                 const isActive = (idx === currentMainIndex);
                 const selIdx = selectedIndices.indexOf(idx);
@@ -239,7 +248,7 @@
                         </div>`;
             }).join('');
             feedGrid.innerHTML = html;
-            if (window.lucide) lucide.createIcons();
+            renderLocalIcons();
         }
 
         window.handleGridClick = (idx) => {
@@ -371,6 +380,7 @@
             }
         };
 
+        renderGrid();
         window.onload = async () => {
             const isPremium = localStorage.getItem('isPremiumUser') === 'true';
             if (!isPremium) {
@@ -398,7 +408,8 @@
                         locationBtn.classList.add('active');
                         locationBtn.querySelector('.btn-text').innerText = post.location;
                     }
-                    renderGrid();
+                    currentMainIndex=pendingImages.length?0:-1;
+                    renderMainPreview();renderGrid();
                 } catch (e) { console.error("載入舊貼文失敗", e); }
             } else {
                 initDB();
