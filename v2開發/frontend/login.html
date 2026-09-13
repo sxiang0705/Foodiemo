@@ -216,6 +216,7 @@
             if (data.avatar_url) store.put(data.avatar_url, "avatar_remote_url");
             tx.oncomplete = () => {
                 new BroadcastChannel('memory_update').postMessage('updated');
+                try { sessionStorage.setItem('foodiemo-await-shell', '1'); } catch(e) {}
                 window.top.location.href = "index.html";
             };
         }

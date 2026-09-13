@@ -105,9 +105,14 @@
         </a>
     </div>
     <div class="c">
-        <div class="content">
-            <div class="card">
-                <img id="displayImg" alt="照片載入中">
+        <div class="content">            <div class="card">
+                <video id="cameraPreview" autoplay playsinline muted style="display:none;width:100%;height:100%;object-fit:cover;border-radius:80px;background:#DCCFC5;"></video>
+                <div id="cameraPlaceholder" style="width:100%;height:100%;border-radius:80px;background:#DCCFC5;color:#806B5D;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:18px;line-height:1.5;">
+                    相機預覽準備中
+                    <small style="font-size:13px;margin-top:8px;opacity:.8;">請使用下方快門拍照</small>
+                </div>
+                <!-- Kept for upload/result compatibility; the center view is the camera preview. -->
+                <img id="displayImg" alt="已上傳照片" style="display:none;">
             </div>
         </div>
     </div>
@@ -173,6 +178,40 @@
         }
         function cacheHeroImage(photoUrl,image){ return cacheImageData('hero',photoUrl,image); }
 
+        let cameraStream=null, cameraUnavailable=false;
+        function stopCameraView(){
+            if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}
+            const video=document.getElementById('cameraPreview');
+            const placeholder=document.getElementById('cameraPlaceholder');
+            if(video){video.pause();video.srcObject=null;video.style.display='none';}
+            if(placeholder)placeholder.style.display='flex';
+        }
+        async function prepareCameraView(){
+            const video=document.getElementById('cameraPreview');
+            const placeholder=document.getElementById('cameraPlaceholder');
+            if(!video || !placeholder)return;
+            if(cameraStream){markHeroReady();return;}
+            if(cameraUnavailable || !window.isSecureContext || !navigator.mediaDevices?.getUserMedia){
+                placeholder.innerHTML='相機預覽不可用<small style="font-size:13px;margin-top:8px;opacity:.8;">請使用下方快門拍照</small>';
+                placeholder.style.display='flex';
+                markHeroReady();
+                return;
+            }
+            try {
+                cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+                video.srcObject=cameraStream;
+                await video.play().catch(()=>{});
+                video.style.display='block';
+                placeholder.style.display='none';
+                markHeroReady();
+            } catch(error) {
+                cameraUnavailable=true;
+                placeholder.innerHTML='相機預覽需要權限<small style="font-size:13px;margin-top:8px;opacity:.8;">請使用下方快門拍照</small>';
+                placeholder.style.display='flex';
+                markHeroReady();
+            }
+        }
+
         // 3. 核心功能：載入最新照片 (對接 FastAPI)
         async function loadLatestPhoto() {
             const imgElement = document.getElementById('displayImg');
@@ -181,7 +220,6 @@
             if(cachedHero?.data){
                 imgElement.src=cachedHero.data;
                 imgElement.style.opacity='1';
-                markHeroReady();
             }
 
             try { await loadFoodiemoRecords(result=>{
@@ -196,7 +234,6 @@
                     tempImg.onload = () => {
                         imgElement.src = photoUrl;
                         imgElement.style.opacity = "1";
-                        markHeroReady();
                         cacheHeroImage(photoUrl,tempImg);
                     };
                     tempImg.src = photoUrl;
@@ -207,7 +244,6 @@
             // [4] 無資料處理：顯示預設圖
             FoodiemoViewCache.remove('hero');
             imgElement.src = "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=2070&auto=format&fit=crop";
-            markHeroReady();
             }); } catch(e) { imgElement.alt='照片暫時更新失敗，請稍後重試'; markHeroReady(); }
         }
 
@@ -312,7 +348,10 @@
         };
 
         window.addEventListener('message', event => {
-            if (event.data?.type === 'pageVisibility' && event.data.visible) loadLatestPhoto();
+            if (event.data?.type === 'pageVisibility') {
+                if(event.data.visible){ prepareCameraView(); loadLatestPhoto(); }
+                else stopCameraView();
+            }
         });
 
         // 7. 啟動
@@ -321,8 +360,10 @@
             initDB().then(() => {
                 loadUserProfile();
                 loadLatestPhoto();
+                if(window.top===window) prepareCameraView();
             });
         });
+        window.addEventListener('pagehide', stopCameraView);
     </script>
 </body>
 </html>

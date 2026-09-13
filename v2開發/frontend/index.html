@@ -266,6 +266,8 @@
                 }, { passive: true });
             });
         });
+        // All frames have loaded, so the active frame can start camera/data preparation.
+        notifyVisiblePage();
     };
 </script>
   
