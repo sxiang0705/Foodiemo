@@ -271,71 +271,53 @@
             avatarImage.src = avatarUrl;
         }
 
-        // 5. 檔案選擇與上傳邏輯
+        // 5. 拍照與上傳邏輯
         const shutterBtn = document.querySelector('.shutter-btn');
         const actionOverlay = document.getElementById('action-sheet-overlay');
 
-        if (shutterBtn) {
-            shutterBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                actionOverlay.classList.add('show');
-            });
-        }
-
-        document.getElementById('btn_cancel')?.addEventListener('click', () => actionOverlay.classList.remove('show'));
-        document.getElementById('btn_camera')?.addEventListener('click', () => document.getElementById('input_camera').click());
-        document.getElementById('btn_gallery')?.addEventListener('click', () => document.getElementById('input_gallery').click());
-
-        async function handleFileSelect(e) {
+        async function uploadFiles(fileList, sourceInput=null) {
             actionOverlay.classList.remove('show');
-            const files = e.target.files;
-            if (!files || files.length === 0) return;
-
+            const files = Array.from(fileList || []);
+            if (!files.length) return;
             const toast = document.getElementById('loading-toast');
-            if (toast) {
-                toast.style.display = 'block';
-                toast.textContent = "Uploading...";
-            }
-
+            if (toast) { toast.style.display = 'block'; toast.textContent = 'Uploading...'; }
             const formData = new FormData();
             const myEmail = localStorage.getItem('myProfileEmail') || '';
-            
             try {
-            // 支援多圖或單圖上傳
-            for (let i = 0; i < files.length; i++) {
-                formData.append('files', await window.prepareFoodiemoPhoto(files[i]));
-            }
-            formData.append('email', myEmail);
-
-                const response = await fetch(`${API_BASE_URL}/upload_memory_post`, {
-                    method: 'POST',
-                    body: formData
-                });
+                for (const file of files) formData.append('files', await window.prepareFoodiemoPhoto(file));
+                formData.append('email', myEmail);
+                const response = await fetch(`${API_BASE_URL}/upload_memory_post`, {method:'POST',body:formData});
                 const result = await response.json();
-
-                if (result.status === 'success') {
-                    if (toast) toast.textContent = "Uploaded!";
-                    // 重要：發送跨頁面更新通知
-                    channel.postMessage({ action: 'updated' });
-                    
-                    // 清除 input
-                    e.target.value = "";
-
-                    // 延遲更新 UI，給後端一點寫入時間
-                    setTimeout(async () => {
-                        await loadLatestPhoto();
-                        if (toast) toast.style.display = 'none';
-                    }, 1000);
-                } else {
-                    throw new Error(result.detail || "上傳失敗");
-                }
+                if (result.status !== 'success') throw new Error(result.detail || '上傳失敗');
+                if (toast) toast.textContent = 'Uploaded!';
+                channel.postMessage({action:'updated'});
+                if (sourceInput) sourceInput.value = '';
+                setTimeout(async () => { await loadLatestPhoto(); if (toast) toast.style.display = 'none'; }, 1000);
             } catch (err) {
-                console.error("上傳錯誤:", err);
-                alert("錯誤: " + err.message);
+                console.error('上傳錯誤:', err);
+                alert('錯誤: ' + err.message);
                 if (toast) toast.style.display = 'none';
             }
         }
 
+        async function captureCameraPhoto() {
+            const video=document.getElementById('cameraPreview');
+            if(!cameraStream || !video || video.readyState < 2 || !video.videoWidth){
+                actionOverlay.classList.add('show');
+                return;
+            }
+            const canvas=document.createElement('canvas');
+            canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+            canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+            const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.9));
+            if(blob) await uploadFiles([new File([blob],`camera-${Date.now()}.jpg`,{type:'image/jpeg'})]);
+        }
+
+        if (shutterBtn) shutterBtn.addEventListener('click', e => { e.preventDefault(); captureCameraPhoto(); });
+        document.getElementById('btn_cancel')?.addEventListener('click', () => actionOverlay.classList.remove('show'));
+        document.getElementById('btn_camera')?.addEventListener('click', () => document.getElementById('input_camera').click());
+        document.getElementById('btn_gallery')?.addEventListener('click', () => document.getElementById('input_gallery').click());
+        function handleFileSelect(e) { uploadFiles(e.target.files,e.target); }
         document.getElementById('input_camera')?.addEventListener('change', handleFileSelect);
         document.getElementById('input_gallery')?.addEventListener('change', handleFileSelect);
 
@@ -350,7 +332,6 @@
         window.addEventListener('message', event => {
             if (event.data?.type === 'pageVisibility') {
                 if(event.data.visible){ prepareCameraView(); loadLatestPhoto(); }
-                else stopCameraView();
             }
         });
 
