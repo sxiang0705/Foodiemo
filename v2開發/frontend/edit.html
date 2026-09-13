@@ -282,7 +282,14 @@
             try {
                 if (window.parent) window.parent.postMessage('unlockSwiping', '*');
                 channel.postMessage('updated');
-                window.top.location.href = homeUrl;
+                // Returning through history lets Safari/Chromium restore the existing
+                // shell from its page cache, preserving the selected page and photo.
+                // Direct visits to edit.html still use the normal URL fallback.
+                const referrer = document.referrer ? new URL(document.referrer, location.href) : null;
+                const cameFromShell = referrer && referrer.origin === location.origin &&
+                    referrer.pathname.endsWith('/index.html');
+                if (cameFromShell && window.history.length > 1) window.history.back();
+                else window.top.location.href = homeUrl;
             } catch (e) { window.location.replace(homeUrl); }
         }
 

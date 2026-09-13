@@ -205,6 +205,9 @@
 
     // 頁面加載完成後啟動
     document.addEventListener('DOMContentLoaded', bootApp);
+    // A history return may restore this shell from Safari BFCache without a load event.
+    // Re-announce the visible frame so it can refresh quietly after a completed edit.
+    window.addEventListener('pageshow', () => notifyVisiblePage());
 
     // 視窗大小改變時重新校準（防止旋轉手機後跑位）
     let lastViewportWidth=window.innerWidth;

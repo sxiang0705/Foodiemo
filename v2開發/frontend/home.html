@@ -258,6 +258,10 @@
             }
         };
 
+        window.addEventListener('message', event => {
+            if (event.data?.type === 'pageVisibility' && event.data.visible) loadLatestPhoto();
+        });
+
         // 7. 啟動
         window.addEventListener('load', async () => {
             await window.FoodiemoSessionReady;
