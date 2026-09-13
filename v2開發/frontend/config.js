@@ -23,6 +23,7 @@ function isApiRequest(resource) {
 // Account-scoped, bounded metadata cache. Photos and credentials are never stored here.
 window.FoodiemoViewCache = {
     clear() { for(const key of Object.keys(sessionStorage)) if(key.startsWith('foodiemo-view:')) sessionStorage.removeItem(key); },
+    remove(name) { try { sessionStorage.removeItem('foodiemo-view:'+name); } catch(e) {} },
     read(name) { try { const item=JSON.parse(sessionStorage.getItem('foodiemo-view:'+name));
         return item && item.email===localStorage.getItem('myProfileEmail') && Date.now()-item.time<600000 ? item.value : null;
     } catch(e) { return null; } },
@@ -31,10 +32,12 @@ window.FoodiemoViewCache = {
     } catch(e) {} }
 };
 window.loadFoodiemoRecords = async function(render) {
-    const user=await window.FoodiemoSessionReady;
-    if(!user)return;
+    // Render the last account-scoped snapshot immediately. Session verification and
+    // the network refresh continue in the background, so a return is not blank.
     const cached=FoodiemoViewCache.read('records');
     if(cached!==null)render(cached);
+    const user=await window.FoodiemoSessionReady;
+    if(!user)return;
     const generation=sessionStorage.getItem('foodiemo-record-generation');
     const response=await fetch(DB_CONFIG.apiUrl+'/get_memories');
     if(response.status===401){FoodiemoViewCache.clear();window.top.location.replace('login.html');return;}
