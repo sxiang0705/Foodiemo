@@ -107,7 +107,7 @@
     <div class="c">
         <div class="content">
             <div class="card">
-                <img id="displayImg" src="https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=2070&auto=format&fit=crop" alt="Display">
+                <img id="displayImg" alt="照片載入中">
             </div>
         </div>
     </div>
@@ -150,44 +150,27 @@
             const imgElement = document.getElementById('displayImg');
             if (!imgElement) return;
 
-            let latestPost = null;
-
-            try {
-                const myEmail = localStorage.getItem('myProfileEmail');
-                if (!myEmail) return;
-
-                // [1] 嘗試從 API 抓取
-                const response = await fetch(`${API_BASE_URL}/get_memories?email=${myEmail}&t=${Date.now()}`);
-                if (!response.ok) throw new Error("讀取照片失敗");
-                if (response.ok) {
-                    const result = await response.json();
-                    const posts = Array.isArray(result) ? result : (result.data || []);
-                    if (posts.length > 0) {
-                        latestPost = posts.sort((a, b) => b.timestamp - a.timestamp)[0];
-                    }
-                }
-            } catch (e) {
-                imgElement.alt = "讀取照片失敗，請稍後重試";
-                return;
-            }
-
+            try { await loadFoodiemoRecords(result=>{
+            const posts=Array.isArray(result)?result:(result.data||[]);
+            const latestPost=[...posts].sort((a,b)=>b.timestamp-a.timestamp)[0];
             // [3] 渲染大圖
             if (latestPost) {
                 let photoUrl = latestPost.imageUrls ? latestPost.imageUrls[0] : (latestPost.url || latestPost.imageUrl);
                 if (photoUrl) {
                     const tempImg = new Image();
-                    tempImg.src = photoUrl;
+                    if(imgElement.getAttribute("src")===photoUrl)return;
                     tempImg.onload = () => {
                         imgElement.src = photoUrl;
                         imgElement.style.opacity = "1";
                     };
+                    tempImg.src = photoUrl;
                     return;
                 }
             }
 
             // [4] 無資料處理：顯示預設圖
             imgElement.src = "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=2070&auto=format&fit=crop";
-            console.log("ℹ️ 無貼文資料，已顯示預設封面圖");
+            }); } catch(e) { imgElement.alt='照片暫時更新失敗，請稍後重試'; }
         }
 
         // 4. 使用者頭像載入 (整合 API 同步版)

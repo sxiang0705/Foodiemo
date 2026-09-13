@@ -149,7 +149,7 @@
         }
         if (gestureAxis!=='horizontal') return;
         swipeWrapper.style.transition='none';
-        overlay.style.pointerEvents='auto';
+        overlay.style.pointerEvents='none';
         const baseOffset = -currentIndex * window.innerWidth;
         
         let moveX = baseOffset + diff;
@@ -222,9 +222,13 @@
                     // Keep native taps on links/buttons inside the iframe unobstructed.
                     if (e.target.closest?.('a, button, input, textarea, select, [role=button], .shutter-btn')) return;
                     if (isScrollLocked) return;
-                    const clonedEvent = new TouchEvent(type, {
-                        touches: Array.from(e.touches),
-                        changedTouches: Array.from(e.changedTouches)
+                    // Convert moving iframe coordinates to the stationary outer viewport.
+                    const rect=frame.getBoundingClientRect();
+                    const normalize=list=>Array.from(list,t=>({clientX:t.clientX+rect.left,clientY:t.clientY+rect.top}));
+                    const clonedEvent = new Event(type);
+                    Object.defineProperties(clonedEvent, {
+                        touches:{value:normalize(e.touches)},
+                        changedTouches:{value:normalize(e.changedTouches)}
                     });
                     window.dispatchEvent(clonedEvent);
 

@@ -247,7 +247,6 @@
             const myEmail = localStorage.getItem('myProfileEmail');
             
             // 即使沒有 Email，也要先畫出空白日曆
-            renderCalendar(); 
 
             if (!myEmail) {
                 console.warn("未找到 Email，僅顯示空白日曆");
@@ -255,10 +254,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/get_memories?email=${myEmail}&t=${Date.now()}`);
-                if (!response.ok) throw new Error("讀取回憶失敗");
-                const result = await response.json();
-                
+                await loadFoodiemoRecords(result=>{
                 // --- 修正點：相容多種後端回傳格式 ---
                 let memoriesArray = [];
                 if (Array.isArray(result)) {
@@ -302,6 +298,7 @@
                 } else {
                     renderCalendar();
                 }
+                });
             } catch (e) { 
                 console.error("❌ 讀取 API 失敗:", e); 
             }
@@ -376,13 +373,14 @@
         function changeMonth(step) {
             displayDate.setDate(1);
             displayDate.setMonth(displayDate.getMonth() + step);
+            FoodiemoViewCache.write("month",displayDate.toISOString());
             renderCalendar();
         }
 
         function resetToCurrentMonth() {
-            const now = new Date();
-            displayDate = new Date(now.getFullYear(), now.getMonth(), 1);
-            renderCalendar();
+            const saved=FoodiemoViewCache.read('month');
+            if(saved)displayDate=new Date(saved);
+            if(!document.querySelector('#calendarContainer .calendar-grid'))renderCalendar();
         }
 
         function handleShellVisibility(event) {

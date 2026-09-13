@@ -292,6 +292,7 @@
         }
 
         function setActiveTab(tab) {
+            FoodiemoViewCache.write("social-tab",tab);
             tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
             minePanel.classList.toggle("active", tab === "mine");
             discoverPanel.classList.toggle("active", tab === "discover");
@@ -411,17 +412,16 @@
             }
 
             try {
-                const response = await fetch(API_BASE_URL + "/get_memories?email=" + encodeURIComponent(email) + "&t=" + Date.now());
-                if (!response.ok) throw new Error("讀取貼文失敗，請稍後再試");
-                const result = await response.json();
+                await loadFoodiemoRecords(result=>{
                 normalizeMinePosts(Array.isArray(result) ? result : (result.data || []));
+                renderFeed(mineFeed, myPosts, "mine");
+                });
             } catch (error) {
                 console.error(TEXT.feedLoadFailed, error);
-                mineFeed.textContent = "讀取貼文失敗，請稍後再試";
+                if(!mineFeed.children.length)mineFeed.textContent = "讀取貼文失敗，請稍後再試";
                 return;
             }
 
-            renderFeed(mineFeed, myPosts, "mine");
         }
 
         window.updateCounter = function(key) {
@@ -528,8 +528,8 @@
             await window.FoodiemoSessionReady;
             makeDiscoverPosts();
             renderFeed(discoverFeed, discoverPosts, "discover");
+            setActiveTab(FoodiemoViewCache.read("social-tab") || "mine");
             await loadMineFeed();
-            setActiveTab("mine");
         }
 
         init();

@@ -20,6 +20,31 @@ function isApiRequest(resource) {
     return url.startsWith(DB_CONFIG.apiUrl) || url.includes(":8001/api") || url.startsWith("/api/");
 }
 
+// Account-scoped, bounded metadata cache. Photos and credentials are never stored here.
+window.FoodiemoViewCache = {
+    clear() { for(const key of Object.keys(sessionStorage)) if(key.startsWith('foodiemo-view:')) sessionStorage.removeItem(key); },
+    read(name) { try { const item=JSON.parse(sessionStorage.getItem('foodiemo-view:'+name));
+        return item && item.email===localStorage.getItem('myProfileEmail') && Date.now()-item.time<600000 ? item.value : null;
+    } catch(e) { return null; } },
+    write(name,value) { try { const text=JSON.stringify({email:localStorage.getItem('myProfileEmail'),time:Date.now(),value});
+        if(text.length<500000)sessionStorage.setItem('foodiemo-view:'+name,text);
+    } catch(e) {} }
+};
+window.loadFoodiemoRecords = async function(render) {
+    const user=await window.FoodiemoSessionReady;
+    if(!user)return;
+    const cached=FoodiemoViewCache.read('records');
+    if(cached!==null)render(cached);
+    const generation=sessionStorage.getItem('foodiemo-record-generation');
+    const response=await fetch(DB_CONFIG.apiUrl+'/get_memories');
+    if(response.status===401){FoodiemoViewCache.clear();window.top.location.replace('login.html');return;}
+    if(!response.ok)throw new Error('資料更新失敗，請稍後重試');
+    const result=await response.json();
+    if(generation!==sessionStorage.getItem('foodiemo-record-generation') || user.email!==localStorage.getItem('myProfileEmail'))return;
+    FoodiemoViewCache.write('records',result);
+    if(JSON.stringify(cached)!==JSON.stringify(result))render(result);
+};
+
 window.fetch = function(resource, options = {}) {
     if (!isApiRequest(resource)) {
         return ORIGINAL_FETCH(resource, options);
@@ -39,7 +64,14 @@ window.fetch = function(resource, options = {}) {
             return requests.get(key).then(response=>response.clone());
         }
     }
-    return ORIGINAL_FETCH(resource,init);
+    return ORIGINAL_FETCH(resource,init).then(response=>{
+        if(response.status===401)FoodiemoViewCache.clear();
+        if(response.ok && !['GET','HEAD','OPTIONS'].includes((init.method||'GET').toUpperCase())) {
+            sessionStorage.removeItem('foodiemo-view:records');
+            sessionStorage.setItem('foodiemo-record-generation',String(Date.now())+Math.random());
+        }
+        return response;
+    });
 };
 
 const DEFAULT_AVATAR_URL =
@@ -94,6 +126,7 @@ window.applyAvatarImage = applyAvatarImage;
 window.applyAvatarBackground = applyAvatarBackground;
 
 async function clearLocalAppData() {
+    FoodiemoViewCache.clear();
     localStorage.clear();
 
     const dbDeleted = new Promise((resolve) => {
@@ -174,6 +207,7 @@ window.refreshFoodiemoSession = async function(redirect = true) {
     try {
         const response = await ORIGINAL_FETCH(DB_CONFIG.apiUrl + '/me', {credentials:'include',cache:'no-store'});
         if (response.status === 401) {
+            FoodiemoViewCache.clear();
             localStorage.removeItem('myProfileEmail');
             localStorage.removeItem('myProfileName');
             localStorage.removeItem('isPremiumUser');
@@ -183,6 +217,7 @@ window.refreshFoodiemoSession = async function(redirect = true) {
         }
         if (!response.ok) throw new Error('帳號資料暫時讀取失敗，請稍後重試');
         const user = await response.json();
+        if(localStorage.getItem('myProfileEmail')!==user.email)FoodiemoViewCache.clear();
         localStorage.setItem('myProfileEmail',user.email);
         localStorage.setItem('myProfileName',user.name);
         localStorage.setItem('isPremiumUser',String(user.is_premium));
