@@ -144,14 +144,16 @@
         function initDB() {
             return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
-        let frameReadySent=false;
+        let frameReadySent=false, heroReady=false, avatarReady=false;
         function signalFrameReady(){
-            if(frameReadySent)return;
+            if(frameReadySent || !heroReady || !avatarReady)return;
             frameReadySent=true;
             try { window.top.postMessage({type:'frameReady',pageIndex:1},'*'); } catch(e) {}
         }
+        function markHeroReady(){ heroReady=true; signalFrameReady(); }
+        function markAvatarReady(){ avatarReady=true; signalFrameReady(); }
 
-        async function cacheHeroImage(photoUrl, image) {
+        async function cacheImageData(cacheName, photoUrl, image) {
             if (!photoUrl) return;
             let absolute;
             try { absolute=new URL(photoUrl,location.href); } catch(e) { return; }
@@ -165,10 +167,11 @@
                 const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.72));
                 if(!blob || blob.size>350000)return;
                 const reader=new FileReader();
-                reader.onload=()=>FoodiemoViewCache.write('hero',{url:absolute.href,data:reader.result});
+                reader.onload=()=>FoodiemoViewCache.write(cacheName,{url:absolute.href,data:reader.result});
                 reader.readAsDataURL(blob);
-            } catch(e) { /* a cache miss never blocks the visible photo */ }
+            } catch(e) { /* a cache miss never blocks the visible image */ }
         }
+        function cacheHeroImage(photoUrl,image){ return cacheImageData('hero',photoUrl,image); }
 
         // 3. 核心功能：載入最新照片 (對接 FastAPI)
         async function loadLatestPhoto() {
@@ -178,7 +181,7 @@
             if(cachedHero?.data){
                 imgElement.src=cachedHero.data;
                 imgElement.style.opacity='1';
-                signalFrameReady();
+                markHeroReady();
             }
 
             try { await loadFoodiemoRecords(result=>{
@@ -193,6 +196,7 @@
                     tempImg.onload = () => {
                         imgElement.src = photoUrl;
                         imgElement.style.opacity = "1";
+                        markHeroReady();
                         cacheHeroImage(photoUrl,tempImg);
                     };
                     tempImg.src = photoUrl;
@@ -203,17 +207,32 @@
             // [4] 無資料處理：顯示預設圖
             FoodiemoViewCache.remove('hero');
             imgElement.src = "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=2070&auto=format&fit=crop";
-            signalFrameReady();
-            }); } catch(e) { imgElement.alt='照片暫時更新失敗，請稍後重試'; signalFrameReady(); }
+            markHeroReady();
+            }); } catch(e) { imgElement.alt='照片暫時更新失敗，請稍後重試'; markHeroReady(); }
         }
 
         // 4. 使用者頭像載入 (整合 API 同步版)
         async function loadUserProfile() {
             const avatarDiv = document.querySelector('.avatar-placeholder');
-            if (!avatarDiv) return;
+            if (!avatarDiv) { markAvatarReady(); return; }
 
+            const cachedAvatar=FoodiemoViewCache.read('avatar');
+            if(cachedAvatar?.data){
+                applyAvatarBackground(avatarDiv,cachedAvatar.data);
+                markAvatarReady();
+            }
             const avatarUrl = getStoredAvatarUrl();
-            applyAvatarBackground(avatarDiv, avatarUrl);
+            const avatarImage = new Image();
+            avatarImage.onload = () => {
+                applyAvatarBackground(avatarDiv,avatarUrl);
+                markAvatarReady();
+                cacheImageData('avatar',avatarUrl,avatarImage);
+            };
+            avatarImage.onerror = () => {
+                if(!cachedAvatar?.data) applyAvatarBackground(avatarDiv,DEFAULT_AVATAR_URL);
+                markAvatarReady();
+            };
+            avatarImage.src = avatarUrl;
         }
 
         // 5. 檔案選擇與上傳邏輯
