@@ -178,7 +178,7 @@
         }
         function cacheHeroImage(photoUrl,image){ return cacheImageData('hero',photoUrl,image); }
 
-        let cameraStream=null, cameraUnavailable=false;
+        let cameraStream=null, cameraUnavailable=false, cameraRequest=null;
         function stopCameraView(){
             if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}
             const video=document.getElementById('cameraPreview');
@@ -197,19 +197,28 @@
                 markHeroReady();
                 return;
             }
-            try {
-                cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-                video.srcObject=cameraStream;
-                await video.play().catch(()=>{});
-                video.style.display='block';
-                placeholder.style.display='none';
-                markHeroReady();
-            } catch(error) {
-                cameraUnavailable=true;
-                placeholder.innerHTML='相機預覽需要權限<small style="font-size:13px;margin-top:8px;opacity:.8;">請使用下方快門拍照</small>';
-                placeholder.style.display='flex';
-                markHeroReady();
-            }
+            // pageVisibility 與啟動流程可能同時呼叫這裡；Safari 若同時送出
+            // 多個 getUserMedia，會重複跳出權限視窗。共用同一個進行中的請求。
+            if(cameraRequest)return cameraRequest;
+            const request=(async()=>{
+                try {
+                    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+                    cameraStream=stream;
+                    video.srcObject=stream;
+                    await video.play().catch(()=>{});
+                    video.style.display='block';
+                    placeholder.style.display='none';
+                    markHeroReady();
+                } catch(error) {
+                    cameraUnavailable=true;
+                    placeholder.innerHTML='相機預覽需要權限<small style="font-size:13px;margin-top:8px;opacity:.8;">請使用下方快門拍照</small>';
+                    placeholder.style.display='flex';
+                    markHeroReady();
+                }
+            })();
+            cameraRequest=request;
+            try { return await request; }
+            finally { if(cameraRequest===request)cameraRequest=null; }
         }
 
         // 3. 核心功能：載入最新照片 (對接 FastAPI)

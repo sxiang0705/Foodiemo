@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT.parent/"前端原始程式碼/frontend"
-CHANGED={"config.js","search.html","sw.js","index.html","home.html","social.html","memories.html","comments.html","edit.html","profile.html","payment.html","login.html","signup.html","otp_verify.html","onboarding.html"}
+CHANGED={"config.js","search.html","sw.js","index.html","home.html","message.html","social.html","memories.html","comments.html","edit.html","profile.html","payment.html","login.html","signup.html","otp_verify.html","onboarding.html"}
 def main():
     manifest=json.loads((ROOT/"docs/frontend-baseline.json").read_text(encoding="utf-8"))
     for name,item in manifest.items():
