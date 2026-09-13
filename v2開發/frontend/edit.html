@@ -282,6 +282,8 @@
             try {
                 if (window.parent) window.parent.postMessage('unlockSwiping', '*');
                 channel.postMessage('updated');
+                // Ask the shell to keep its loading veil until the restored home frame is ready.
+                try { sessionStorage.setItem('foodiemo-await-shell', '1'); } catch(e) {}
                 // Returning through history lets Safari/Chromium restore the existing
                 // shell from its page cache, preserving the selected page and photo.
                 // Direct visits to edit.html still use the normal URL fallback.

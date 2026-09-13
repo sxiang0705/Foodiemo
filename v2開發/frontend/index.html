@@ -64,7 +64,9 @@
     </style>
 </head>
 <body>
-    <div class="drag-overlay" id="dragOverlay"></div>
+    <div id="shellLoading" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;background:#F3ECE5;color:#6F5B50;font:600 16px system-ui,sans-serif;transition:opacity .16s ease;">
+        載入中…
+    </div>    <div class="drag-overlay" id="dragOverlay"></div>
     <div class="wrapper" id="swipeWrapper">
         <div class="page"><iframe src="memories.html"></iframe></div>
         <div class="page"><iframe src="home.html"></iframe></div>
@@ -82,6 +84,28 @@
     const swipeWrapper = document.getElementById('swipeWrapper');
     const overlay = document.getElementById('dragOverlay');
     const frames = document.querySelectorAll('iframe');
+    const shellLoading = document.getElementById('shellLoading');
+    let shellWaiting = false;
+    let shellFallbackTimer = null;
+
+    function revealShell() {
+        if (!shellWaiting || !shellLoading) return;
+        shellWaiting = false;
+        if (shellFallbackTimer) clearTimeout(shellFallbackTimer);
+        try { sessionStorage.removeItem('foodiemo-await-shell'); } catch(e) {}
+        shellLoading.style.opacity = '0';
+        setTimeout(() => { if (!shellWaiting) shellLoading.style.display = 'none'; }, 180);
+    }
+
+    function armShellGate() {
+        let requested = false;
+        try { requested = sessionStorage.getItem('foodiemo-await-shell') === '1'; } catch(e) {}
+        if (!requested || !shellLoading) return;
+        shellWaiting = true;
+        shellLoading.style.display = 'flex';
+        shellLoading.style.opacity = '1';
+        shellFallbackTimer = setTimeout(revealShell, 2200);
+    }
 
     let isScrollLocked = false; 
     let startX = 0;
@@ -186,6 +210,7 @@
 
     // --- 4. 初始化邏輯 ---
     function bootApp() {
+        armShellGate();
         const params = new URLSearchParams(window.location.search);
         const tab = params.get('tab');
         
@@ -201,6 +226,7 @@
     window.addEventListener('message', (e) => {
         if (e.data === 'lockSwiping') isScrollLocked = true;
         if (e.data === 'unlockSwiping') isScrollLocked = false;
+        if (e.data?.type === 'frameReady' && e.data.pageIndex === currentIndex) revealShell();
     });
 
     // 頁面加載完成後啟動

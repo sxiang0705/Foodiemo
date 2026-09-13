@@ -144,6 +144,13 @@
         function initDB() {
             return window.FoodiemoInitDB().then(value => { db = value; return value; });
         }
+        let frameReadySent=false;
+        function signalFrameReady(){
+            if(frameReadySent)return;
+            frameReadySent=true;
+            try { window.top.postMessage({type:'frameReady',pageIndex:1},'*'); } catch(e) {}
+        }
+
         async function cacheHeroImage(photoUrl, image) {
             if (!photoUrl) return;
             let absolute;
@@ -171,6 +178,7 @@
             if(cachedHero?.data){
                 imgElement.src=cachedHero.data;
                 imgElement.style.opacity='1';
+                signalFrameReady();
             }
 
             try { await loadFoodiemoRecords(result=>{
@@ -195,7 +203,8 @@
             // [4] 無資料處理：顯示預設圖
             FoodiemoViewCache.remove('hero');
             imgElement.src = "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=2070&auto=format&fit=crop";
-            }); } catch(e) { imgElement.alt='照片暫時更新失敗，請稍後重試'; }
+            signalFrameReady();
+            }); } catch(e) { imgElement.alt='照片暫時更新失敗，請稍後重試'; signalFrameReady(); }
         }
 
         // 4. 使用者頭像載入 (整合 API 同步版)
