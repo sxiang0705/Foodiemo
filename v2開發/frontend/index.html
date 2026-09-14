@@ -151,6 +151,7 @@
         featureOverlay.classList.toggle('comment-feature', isCommentFeature);
         featureFrame.style.background = isCommentFeature ? 'transparent' : '#F3ECE5';
         featureOverlay.style.display = 'block';
+        featureOverlay.style.visibility = isCommentFeature ? 'hidden' : 'visible';
         featureOverlay.setAttribute('aria-hidden', 'false');
         isScrollLocked = true;
     }
@@ -165,6 +166,7 @@
             featureOverlay.setAttribute('aria-hidden', 'true');
         }
         if (featureFrame) featureFrame.style.background = '#F3ECE5';
+        if (featureOverlay) featureOverlay.style.visibility = 'visible';
         isScrollLocked = false;
         notifyVisiblePage();
         if (restoreHistory && hadHistory) history.back();
@@ -289,6 +291,10 @@
         }
         if (e.data?.type === 'closeFeature' && e.source === featureFrame?.contentWindow) {
             closeFeaturePage();
+            return;
+        }
+        if (e.data?.type === 'featureReady' && e.source === featureFrame?.contentWindow) {
+            featureOverlay.style.visibility = 'visible';
             return;
         }
         if (e.data?.type === 'frameReady' && e.data.pageIndex === currentIndex) revealShell();
