@@ -72,6 +72,9 @@
         <div class="page"><iframe src="home.html"></iframe></div>
         <div class="page"><iframe src="social.html"></iframe></div>
     </div>
+    <div id="featureOverlay" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:10000;background:#F3ECE5;">
+        <iframe id="featureFrame" title="Foodiemo 功能頁面" allow="camera; microphone" style="width:100%;height:100%;border:0;display:block;background:#F3ECE5;"></iframe>
+    </div>
 
     <script src="env.js"></script>
     <script src="config.js"></script> 
@@ -83,7 +86,9 @@
     // --- 1. 全域變數 ---
     const swipeWrapper = document.getElementById('swipeWrapper');
     const overlay = document.getElementById('dragOverlay');
-    const frames = document.querySelectorAll('iframe');
+    const frames = document.querySelectorAll('.wrapper iframe');
+    const featureOverlay = document.getElementById('featureOverlay');
+    const featureFrame = document.getElementById('featureFrame');
     const shellLoading = document.getElementById('shellLoading');
     let shellWaiting = false;
     let shellFallbackTimer = null;
@@ -113,6 +118,41 @@
     let startY=0, gestureAxis=null;
     let isDragging = false;
     let currentIndex = 1; // 預設 Home
+    let featureHistoryActive = false;
+
+    function featureUrl(value) {
+        try {
+            const url = new URL(value, location.href);
+            if (url.origin !== location.origin || !/^\/(?:search|edit)\.html$/.test(url.pathname)) return null;
+            return url.href;
+        } catch (_) { return null; }
+    }
+
+    function showFeaturePage(value, updateHistory=true) {
+        const url = featureUrl(value);
+        if (!url || !featureOverlay || !featureFrame) return;
+        if (updateHistory) {
+            history.pushState({ feature: url }, '', url);
+            featureHistoryActive = true;
+        }
+        featureFrame.src = url;
+        featureOverlay.style.display = 'block';
+        featureOverlay.setAttribute('aria-hidden', 'false');
+        isScrollLocked = true;
+    }
+
+    function closeFeaturePage(restoreHistory=true) {
+        const hadHistory = featureHistoryActive;
+        featureHistoryActive = false;
+        if (featureFrame) featureFrame.src = 'about:blank';
+        if (featureOverlay) {
+            featureOverlay.style.display = 'none';
+            featureOverlay.setAttribute('aria-hidden', 'true');
+        }
+        isScrollLocked = false;
+        notifyVisiblePage();
+        if (restoreHistory && hadHistory) history.back();
+    }
 
     function notifyVisiblePage() {
         frames.forEach((frame, index) => {
@@ -226,7 +266,20 @@
     window.addEventListener('message', (e) => {
         if (e.data === 'lockSwiping') isScrollLocked = true;
         if (e.data === 'unlockSwiping') isScrollLocked = false;
+        if (e.data?.type === 'openFeature' && e.source === frames[1]?.contentWindow) {
+            showFeaturePage(e.data.url);
+            return;
+        }
+        if (e.data?.type === 'closeFeature' && e.source === featureFrame?.contentWindow) {
+            closeFeaturePage();
+            return;
+        }
         if (e.data?.type === 'frameReady' && e.data.pageIndex === currentIndex) revealShell();
+    });
+
+    window.addEventListener('popstate', event => {
+        if (event.state?.feature) showFeaturePage(event.state.feature, false);
+        else if (featureOverlay?.style.display === 'block') closeFeaturePage(false);
     });
 
     // 頁面加載完成後啟動

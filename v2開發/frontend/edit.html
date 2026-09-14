@@ -272,6 +272,17 @@
             renderGrid();
         });
 
+        function closeEmbeddedFeature(){
+            try {
+                const feature=window.top.document.getElementById('featureFrame');
+                if(feature && feature.contentWindow===window){
+                    window.top.postMessage({type:'closeFeature'},'*');
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
+
         function goHome() {
             // 移除原本會導致卡住的 shareBtn.disabled 檢查
             releaseUrls();
@@ -287,6 +298,7 @@
                 // Returning through history lets Safari/Chromium restore the existing
                 // shell from its page cache, preserving the selected page and photo.
                 // Direct visits to edit.html still use the normal URL fallback.
+                if(closeEmbeddedFeature()) return;
                 const referrer = document.referrer ? new URL(document.referrer, location.href) : null;
                 const cameFromShell = referrer && referrer.origin === location.origin &&
                     /\/(?:index|home|social|memories)\.html$/.test(referrer.pathname);

@@ -330,8 +330,22 @@
         window.addEventListener('beforeunload', () => {
             window.parent.postMessage('unlockSwiping', '*');
         });
+        function closeEmbeddedFeature(){
+            try {
+                const feature=window.top.document.getElementById('featureFrame');
+                if(feature && feature.contentWindow===window){
+                    window.top.postMessage({type:'closeFeature'},'*');
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
         const backLink=document.querySelector('.back-btn');
         backLink?.addEventListener('click', event => {
+            if(closeEmbeddedFeature()){
+                event.preventDefault();
+                return;
+            }
             const referrer=document.referrer ? new URL(document.referrer,location.href) : null;
             const cameFromShell=referrer && referrer.origin===location.origin && /\/(?:index|home|social|memories)\.html$/.test(referrer.pathname);
             if(cameFromShell && window.history.length>1){

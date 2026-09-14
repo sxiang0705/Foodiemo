@@ -130,9 +130,9 @@
     </div>
 
     <div class="footer">
-        <a href="search.html" target="_top" style="text-decoration: none; display: flex;"><svg class="icon-brown" width="32" height="32" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></a>
+        <a href="search.html" target="_top" onclick="return openFeaturePage('search.html')" style="text-decoration: none; display: flex;"><svg class="icon-brown" width="32" height="32" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></a>
         <div class="shutter-btn"><div class="shutter-inner"></div></div>
-        <a href="edit.html?from=home" target="_top" style="text-decoration: none; display: flex;"><svg class="icon-brown" width="32" height="32" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg></a>
+        <a href="edit.html?from=home" target="_top" onclick="return openFeaturePage('edit.html?from=home')" style="text-decoration: none; display: flex;"><svg class="icon-brown" width="32" height="32" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg></a>
     </div>
 
     <input type="file" id="input_camera" accept="image/*" capture="environment" style="display: none;">
@@ -150,6 +150,13 @@
     <script src="config.js"></script>
     <script>
         // --- 1. 全域變數與初始化 ---
+        function openFeaturePage(url){
+            if(window.top !== window){
+                window.top.postMessage({type:'openFeature',url},'*');
+                return false;
+            }
+            return true;
+        }
         const dbName = DB_CONFIG.name;
         const dbVersion = DB_CONFIG.version;
         const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, ''); // 確保結尾沒有斜線
@@ -316,7 +323,7 @@
         const captureFeedback = document.getElementById('captureFeedback');
 
         const captureUiStyle=document.createElement('style');
-        captureUiStyle.textContent='            #captureReviewBar{min-height:76px;padding:4px 28px 2px;align-items:center;justify-content:center;gap:18px;background:#F3ECE5;color:#806B5D;}            #captureReviewBar.show{display:flex!important;}            .capture-review-btn{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .14s ease,opacity .14s ease,background .14s ease;box-shadow:0 3px 8px rgba(95,70,53,.16);}            .capture-review-btn:active{transform:scale(.9);}            .capture-review-btn:disabled{opacity:.45;cursor:wait;}            .capture-review-btn.discard{background:#F3ECE5;color:#9C7C66;border:2px solid #9C7C66;}            .capture-review-btn.keep{background:#9C7C66;color:#fff;border:2px solid #9C7C66;}            .capture-review-hint{min-width:108px;text-align:center;font-size:13px;color:#806B5D;font-weight:600;}            .card.capture-flash::after{content:"";position:absolute;inset:0;border-radius:80px;background:#fff;pointer-events:none;z-index:5;animation:foodieCaptureFlash .32s ease-out forwards;}            #captureFeedback.show{display:block!important;animation:foodieCaptureFeedback 1.7s ease-out forwards;}            .shutter-btn.capture-pulse{animation:foodieShutterPulse .26s ease-out;}            @keyframes foodieCaptureFlash{0%{opacity:.85}100%{opacity:0}}            @keyframes foodieCaptureFeedback{0%{opacity:0;transform:translate(-50%,8px)}15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px)}}            @keyframes foodieShutterPulse{0%{transform:scale(1)}45%{transform:scale(.9)}100%{transform:scale(1)}}';
+        captureUiStyle.textContent='            #captureReviewBar{position:fixed;left:0;right:0;bottom:calc(72px + 45px + env(safe-area-inset-bottom));height:64px;min-height:64px;padding:4px 24px 2px;align-items:center;justify-content:center;gap:14px;background:#F3ECE5;color:#806B5D;z-index:20;pointer-events:none;}            #captureReviewBar.show{display:flex!important;}            .capture-review-btn{width:50px;height:50px;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .14s ease,opacity .14s ease,background .14s ease;box-shadow:0 3px 8px rgba(95,70,53,.16);}            .capture-review-btn:active{transform:scale(.9);}            .capture-review-btn:disabled{opacity:.45;cursor:wait;}            .capture-review-btn.discard{background:#F3ECE5;color:#9C7C66;border:2px solid #9C7C66;}            .capture-review-btn.keep{background:#9C7C66;color:#fff;border:2px solid #9C7C66;}            .capture-review-hint{min-width:108px;text-align:center;font-size:13px;color:#806B5D;font-weight:600;}            .card.capture-flash::after{content:"";position:absolute;inset:0;border-radius:80px;background:#fff;pointer-events:none;z-index:5;animation:foodieCaptureFlash .32s ease-out forwards;}            #captureFeedback.show{display:block!important;animation:foodieCaptureFeedback 1.7s ease-out forwards;}            .shutter-btn.capture-pulse{animation:foodieShutterPulse .26s ease-out;}            @keyframes foodieCaptureFlash{0%{opacity:.85}100%{opacity:0}}            @keyframes foodieCaptureFeedback{0%{opacity:0;transform:translate(-50%,8px)}15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px)}}            @keyframes foodieShutterPulse{0%{transform:scale(1)}45%{transform:scale(.9)}100%{transform:scale(1)}}';
         document.head.appendChild(captureUiStyle);
 
         async function uploadFiles(fileList, sourceInput=null) {

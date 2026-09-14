@@ -188,7 +188,7 @@ async function settled(page){
     await context.addInitScript(()=>localStorage.setItem('myProfileEmail','fixture@example.invalid'));
     await page.goto(BASE+'/index.html');
     await page.waitForFunction(()=>document.getElementById('swipeWrapper').style.transform==='translateX(-390px)');
-    check(await page.locator('iframe').count()===3,'UI-01 original three-iframe home');
+    check(await page.locator('.wrapper iframe').count()===3,'UI-01 original three-iframe home');
     await page.evaluate(()=>{
       const t=x=>new Touch({identifier:1,target:window.document.body,clientX:x,clientY:300});
       window.dispatchEvent(new TouchEvent('touchstart',{touches:[t(300)]}));
@@ -238,4 +238,3 @@ async function settled(page){
     console.log('TOTAL '+results.length+' browser checks');
   } finally {await browser.close();await new Promise(r=>original.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});
-
