@@ -289,7 +289,7 @@
                 // Direct visits to edit.html still use the normal URL fallback.
                 const referrer = document.referrer ? new URL(document.referrer, location.href) : null;
                 const cameFromShell = referrer && referrer.origin === location.origin &&
-                    referrer.pathname.endsWith('/index.html');
+                    /\/(?:index|home|social|memories)\.html$/.test(referrer.pathname);
                 if (cameFromShell && window.history.length > 1) window.history.back();
                 else window.top.location.href = homeUrl;
             } catch (e) { window.location.replace(homeUrl); }

@@ -330,6 +330,15 @@
         window.addEventListener('beforeunload', () => {
             window.parent.postMessage('unlockSwiping', '*');
         });
+        const backLink=document.querySelector('.back-btn');
+        backLink?.addEventListener('click', event => {
+            const referrer=document.referrer ? new URL(document.referrer,location.href) : null;
+            const cameFromShell=referrer && referrer.origin===location.origin && /\/(?:index|home|social|memories)\.html$/.test(referrer.pathname);
+            if(cameFromShell && window.history.length>1){
+                event.preventDefault();
+                window.history.back();
+            }
+        });
 
         const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, '');
         const listContainer = document.getElementById('listContainer');
