@@ -79,6 +79,17 @@
     <script src="env.js"></script>
     <script src="config.js"></script> 
 <script>
+    // Feature pages are opened above this shell so the Home iframe (and its
+    // camera stream) stays mounted while the user visits another section.
+    (() => {
+        const style = document.createElement('style');
+        style.textContent = `
+            #featureOverlay.comment-feature { background:rgba(32,24,20,.34)!important; }
+            #featureOverlay.comment-feature #featureFrame { background:transparent!important; }
+        `;
+        document.head.appendChild(style);
+    })();
+
     // --- [0. 防止狂閃阻斷器] ---
     // Cookie identity is verified by the shared session loader in config.js.
 
@@ -123,7 +134,7 @@
     function featureUrl(value) {
         try {
             const url = new URL(value, location.href);
-            if (url.origin !== location.origin || !/^\/(?:search|edit)\.html$/.test(url.pathname)) return null;
+            if (url.origin !== location.origin || !/^\/(?:search|edit|profile|message|comments)\.html$/.test(url.pathname)) return null;
             return url.href;
         } catch (_) { return null; }
     }
@@ -136,6 +147,9 @@
             featureHistoryActive = true;
         }
         featureFrame.src = url;
+        const isCommentFeature = new URL(url).pathname.endsWith('/comments.html');
+        featureOverlay.classList.toggle('comment-feature', isCommentFeature);
+        featureFrame.style.background = isCommentFeature ? 'transparent' : '#F3ECE5';
         featureOverlay.style.display = 'block';
         featureOverlay.setAttribute('aria-hidden', 'false');
         isScrollLocked = true;
@@ -146,9 +160,11 @@
         featureHistoryActive = false;
         if (featureFrame) featureFrame.src = 'about:blank';
         if (featureOverlay) {
+            featureOverlay.classList.remove('comment-feature');
             featureOverlay.style.display = 'none';
             featureOverlay.setAttribute('aria-hidden', 'true');
         }
+        if (featureFrame) featureFrame.style.background = '#F3ECE5';
         isScrollLocked = false;
         notifyVisiblePage();
         if (restoreHistory && hadHistory) history.back();
@@ -266,7 +282,8 @@
     window.addEventListener('message', (e) => {
         if (e.data === 'lockSwiping') isScrollLocked = true;
         if (e.data === 'unlockSwiping') isScrollLocked = false;
-        if (e.data?.type === 'openFeature' && e.source === frames[1]?.contentWindow) {
+        if (e.data?.type === 'openFeature' &&
+            (e.source === frames[1]?.contentWindow || e.source === frames[2]?.contentWindow)) {
             showFeaturePage(e.data.url);
             return;
         }

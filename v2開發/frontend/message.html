@@ -144,7 +144,7 @@
 <body>
 
     <div class="header">
-        <a href="index.html" target="_top" class="back-btn">
+        <a href="index.html" target="_top" class="back-btn" onclick="if (closeEmbeddedFeature()) return false;">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M15 18l-6-6 6-6"/>
             </svg>
@@ -234,6 +234,17 @@
     </div>
 
     <script>
+    function closeEmbeddedFeature() {
+        try {
+            const feature = window.top.document.getElementById('featureFrame');
+            if (feature && feature.contentWindow === window) {
+                window.top.postMessage({type:'closeFeature'}, '*');
+                return true;
+            }
+        } catch (_) {}
+        return false;
+    }
+
     // 1. 進入頁面時鎖定殼層滑動
     window.parent.postMessage('lockSwiping', '*');
 

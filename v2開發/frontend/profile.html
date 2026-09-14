@@ -139,7 +139,7 @@
 <body>
 
     <div class="header">
-        <a href="index.html" target="_top" class="back-btn"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        <a href="index.html" target="_top" class="back-btn" onclick="if (closeEmbeddedFeature()) return false;"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
         </a>
     </div>
 
@@ -208,6 +208,17 @@
     <script src="env.js"></script>
     <script src="config.js"></script>
     <script>
+        function closeEmbeddedFeature() {
+            try {
+                const feature = window.top.document.getElementById('featureFrame');
+                if (feature && feature.contentWindow === window) {
+                    window.top.postMessage({type:'closeFeature'}, '*');
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
+
         // --- 1. 初始化與配置 ---
         const dbName = DB_CONFIG.name;
         const dbVersion = DB_CONFIG.version;

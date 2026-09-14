@@ -457,17 +457,26 @@
             document.getElementById("likes-" + feedType + "-" + postId).textContent = post.likes + TEXT.likesSuffix;
         };
 
+        function openEmbeddedFeature(url) {
+            if (window.top !== window) {
+                window.top.postMessage({type:'openFeature', url}, '*');
+                return true;
+            }
+            window.top.location.href = url;
+            return true;
+        }
+
         window.openComments = function(postId, feedType) {
             if (feedType === "discover") {
                 alert(TEXT.discoverReadOnly);
                 return;
             }
-            window.top.location.href = "comments.html?id=" + postId + "&v=" + Date.now();
+            openEmbeddedFeature("comments.html?id=" + encodeURIComponent(postId) + "&v=" + Date.now());
         };
 
         window.editPost = function(event, postId) {
             event.stopPropagation();
-            window.top.location.href = "edit.html?id=" + postId + "&from=social";
+            openEmbeddedFeature("edit.html?id=" + encodeURIComponent(postId) + "&from=social");
         };
 
         window.reportPost = function(event, postId, feedType) {

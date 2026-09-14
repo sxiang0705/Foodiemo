@@ -207,9 +207,21 @@
             } finally { btn.disabled = false; }
         }
 
+        function closeEmbeddedFeature() {
+            try {
+                const feature = window.top.document.getElementById('featureFrame');
+                if (feature && feature.contentWindow === window) {
+                    window.top.postMessage({type:'closeFeature'}, '*');
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
+
         function goBackToSocial() {
+            if (closeEmbeddedFeature()) return;
             window.parent.postMessage('unlockSwiping', '*');
-            window.top.location.href = './index.html?tab=social'; 
+            window.top.location.href = './index.html?tab=social';
         }
 
         async function init() {
@@ -246,6 +258,40 @@
         window.parent.postMessage('lockSwiping', '*');
         window.addEventListener('beforeunload', () => window.parent.postMessage('unlockSwiping', '*'));
 
+        function activateCommentSheet() {
+            if (window.top === window) return;
+            const panel = document.createElement('div');
+            panel.className = 'comments-sheet-panel';
+            const currentScript = document.currentScript;
+            Array.from(document.body.childNodes).forEach(node => {
+                if (node !== currentScript) panel.appendChild(node);
+            });
+            document.body.appendChild(panel);
+            document.body.classList.add('comments-sheet');
+            const style = document.createElement('style');
+            style.textContent = "html { background: transparent; }\nbody.comments-sheet { display:block; height:100%; min-height:100%; overflow:hidden; background:transparent; transform:none; }\nbody.comments-sheet > script { display:none; }\n.comments-sheet-panel { position:absolute; left:0; right:0; bottom:0; height:min(86dvh, 760px); min-height:260px; display:flex; flex-direction:column; overflow:hidden; background:#fff; border-radius:24px 24px 0 0; box-shadow:0 -10px 32px rgba(45,31,24,.2); transform:translateY(100%); transition:transform .28s cubic-bezier(.2,.8,.2,1); }\nbody.comments-sheet.comments-sheet-ready .comments-sheet-panel { transform:translateY(0); }\nbody.comments-sheet .header { flex-shrink:0; padding-top:max(10px, env(safe-area-inset-top)); }\nbody.comments-sheet .content { min-height:0; }\nbody.comments-sheet .footer { flex-shrink:0; }";
+            document.head.appendChild(style);
+            const syncViewport = () => {
+                const vv = window.visualViewport;
+                if (!vv) return;
+                const height = Math.max(260, Math.min(760, vv.height - 16));
+                panel.style.height = height + 'px';
+                panel.style.bottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px';
+            };
+            syncViewport();
+            window.visualViewport?.addEventListener('resize', syncViewport);
+            window.addEventListener('resize', syncViewport);
+            inputField?.addEventListener('focus', () => setTimeout(() => {
+                syncViewport();
+                inputField.scrollIntoView({block:'nearest'});
+            }, 120));
+            document.body.addEventListener('click', event => {
+                if (event.target === document.body || event.target === document.documentElement) closeEmbeddedFeature();
+            });
+            requestAnimationFrame(() => document.body.classList.add('comments-sheet-ready'));
+        }
+
+        activateCommentSheet();
         init();
     </script>
 </body>
