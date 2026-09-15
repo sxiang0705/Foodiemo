@@ -27,7 +27,7 @@ def post(c,row,viewer_id=None):
         caption=row["text"] or "",location=row["location_text"] or "",restaurant_id=str(row["restaurant_id"]) if row["restaurant_id"] else None,
         mentions=[dict(id=str(m["user_id"]),name=m["user_name"]) for m in mentions],
         username=author["user_name"],email=author["email"],userAvatar="/api/avatars/"+str(row["user_id"]) if author["avatar_path"] else None,
-        likes=likes,isLiked=is_liked,
+        likes=likes,isLiked=is_liked,commentCount=len(comments),
         comments=[dict(user=x["user_name"],text=x["text"],avatar="/api/avatars/"+str(x["user_id"]) if x["avatar_path"] else None,timestamp=x["create_time"].isoformat()) for x in comments])
 @router.get("/get_memories")
 def memories(request:Request,email:str="",c=Depends(connection)):

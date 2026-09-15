@@ -51,7 +51,7 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/reset_password | POST reset_token/new_password；成功撤銷該帳號所有工作階段 |
 | /api/me | GET 會員身分、avatar_url、is_premium、preferences |
 | /api/preferences | PUT version=1、answers 六題 key/value；選項需完全符合原六題 |
-| /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked` |
+| /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked`、`commentCount` |
 | /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；首頁拍照可附 `initial_comment`（最多 2000 字）建立第一則留言；更新須 post_id |
 | /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；ID 以字串傳遞 |
 | /api/posts/{id} | DELETE 整篇紀錄及照片引用 |

@@ -212,7 +212,6 @@
             menuDelete: "\u522a\u9664",
             menuCollab: "\u5171\u540c\u7de8\u8f2f",
             menuCollabPremium: "\u5171\u540c\u7de8\u8f2f\uff08\u6703\u54e1\uff09",
-            likesSuffix: " likes",
             discoverReadOnly: "\u63a8\u85a6\u8cbc\u6587\u76ee\u524d\u53ea\u958b\u653e\u700f\u89bd\u8207\u6309\u8b9a\u3002",
             reportedMine: "\u5df2\u6536\u5230\u9019\u7bc7\u8cbc\u6587\u7684\u6aa2\u8209\u3002",
             reportedDiscover: "\u5df2\u6536\u5230\u9019\u7bc7\u63a8\u85a6\u8cbc\u6587\u7684\u6aa2\u8209\u3002",
@@ -313,7 +312,8 @@
                     imageUrls: item.images,
                     userAvatar: DEFAULT_AVATAR_URL,
                     date: item.date,
-                    isLiked: false
+                    isLiked: false,
+                    commentCount: 0
                 }));
         }
 
@@ -327,6 +327,7 @@
                 userAvatar: getAvatar(post.userAvatar || post.avatar_url || myAvatar),
                 imageUrls: Array.isArray(post.imageUrls) ? post.imageUrls : [post.url].filter(Boolean),
                 likes: typeof post.likes === "number" ? post.likes : 0,
+                commentCount: typeof post.commentCount === "number" ? post.commentCount : (Array.isArray(post.comments) ? post.comments.length : 0),
                 isLiked: !!post.isLiked
             }));
         }
@@ -385,8 +386,9 @@
                         <button class="icon-btn" onclick="window.toggleLike('${feedType}', '${post.id}')">
                             <span id="like-${key}">${post.isLiked ? icons.heartFilled : icons.heartOutline}</span>
                         </button>
-                        <span class="like-count" id="likes-${key}">${post.likes}${TEXT.likesSuffix}</span>
+                        <span class="like-count" id="likes-${key}">${post.likes}</span>
                         <button class="icon-btn" onclick="window.openComments('${post.id}', '${feedType}')">${icons.comment}</button>
+                        <span class="like-count comment-count" id="comments-${key}">${post.commentCount}</span>
                     </div>
                     ${typeof post.rating === "number" ? `<div class="rating">${TEXT.ratingLabel}${post.rating.toFixed(1)}</div>` : ""}
                     <div class="caption">${escapeHtml(post.caption || "")}</div>
@@ -459,7 +461,7 @@
                 post.isLiked = !post.isLiked;
                 post.likes = Math.max(0, post.likes + (post.isLiked ? 1 : -1));
                 document.getElementById("like-" + feedType + "-" + postId).innerHTML = post.isLiked ? icons.heartFilled : icons.heartOutline;
-                document.getElementById("likes-" + feedType + "-" + postId).textContent = post.likes + TEXT.likesSuffix;
+                document.getElementById("likes-" + feedType + "-" + postId).textContent = post.likes;
                 return;
             }
             likeBusy.add(key);
@@ -475,7 +477,7 @@
                 const icon = document.getElementById("like-" + feedType + "-" + postId);
                 const count = document.getElementById("likes-" + feedType + "-" + postId);
                 if (icon) icon.innerHTML = post.isLiked ? icons.heartFilled : icons.heartOutline;
-                if (count) count.textContent = post.likes + TEXT.likesSuffix;
+                if (count) count.textContent = post.likes;
             } catch (error) {
                 alert("愛心未保存，請稍後再試");
             } finally {

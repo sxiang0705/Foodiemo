@@ -131,6 +131,7 @@ def test_capture_message_creates_comment_and_like_persists(setup):
     record=r.json()['id']
     post=c.get('/api/get_post/'+record).json()
     assert post['comments'][0]['text']=='今天的午餐 🍜'
+    assert post['commentCount']==1
     assert post['likes']==0 and post['isLiked'] is False
     assert c.post('/api/posts/'+record+'/like').json()=={'status':'success','liked':True}
     post=c.get('/api/get_post/'+record).json()
