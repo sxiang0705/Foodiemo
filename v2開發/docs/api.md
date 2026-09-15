@@ -51,10 +51,11 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/reset_password | POST reset_token/new_password；成功撤銷該帳號所有工作階段 |
 | /api/me | GET 會員身分、avatar_url、is_premium、preferences |
 | /api/preferences | PUT version=1、answers 六題 key/value；選項需完全符合原六題 |
-| /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式 |
-| /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；更新須 post_id |
+| /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked` |
+| /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；首頁拍照可附 `initial_comment`（最多 2000 字）建立第一則留言；更新須 post_id |
 | /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；ID 以字串傳遞 |
 | /api/posts/{id} | DELETE 整篇紀錄及照片引用 |
+| /api/posts/{id}/like | POST／DELETE；目前登入者對自己的紀錄新增／取消愛心，重複新增不會重複計數 |
 | /api/delete_single_photo | DELETE post_id/photo_url；只刪自己指定的一張 |
 | /api/photos/{id} | GET 作者限定的 JPEG；不公開本機檔案路徑 |
 | /api/add_comment | POST photo_id（沿用原版，值為紀錄 ID）、text；只可於自己紀錄留言 |
@@ -63,4 +64,4 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 
 photo_order 是 JSON 陣列，例：`[{"existing":"/api/photos/12"},{"new":0}]`。new 是 files 順序索引；existing 必須屬於本篇。全部新檔案必須使用一次，不接受重複／他人的照片。未傳順序時以新檔案原順序保存（首頁直接上傳用）。mention_ids 為會員 ID JSON 陣列，最多 10 人。
 
-CaptureMailer 僅由隔離測試注入，HTTP 回應無 OTP preview；正式 SMTP 尚未設定。付款沒有外部金流請求；既有 Google OAuth API 尚未實作。
+CaptureMailer 僅由隔離測試注入，HTTP 回應無 OTP preview；正式 SMTP 由忽略的本機設定提供並已完成實信驗收。付款沒有外部金流請求；既有 Google OAuth API 尚未實作。

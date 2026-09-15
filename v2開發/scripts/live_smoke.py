@@ -13,7 +13,7 @@ def main():
     engine=build_engine(Settings.from_env())
     with httpx.Client(base_url="http://127.0.0.1:8002",timeout=15) as client,engine.connect() as c:
         assert c.execute(text("SHOW transaction_read_only")).scalar()=="on"
-        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()=="0002_accounts_records"
+        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()=="0003_record_likes"
         response=client.get("/api/restaurants/recommendations?count=3")
         response.raise_for_status()
         data=response.json()
@@ -24,7 +24,7 @@ def main():
             assert (item["title"],item["address"])==tuple(record)
         again=client.get("/api/restaurants/recommendations",params={"count":3,"cursor":data["next_cursor"]}).json()
         assert again["items"][0]["id"]!=data["items"][0]["id"]
-        result={"source":"project_db","readonly":True,"baseline":"0002_accounts_records",
+        result={"source":"project_db","readonly":True,"baseline":"0003_record_likes",
                 "matched_cards":len(data["items"]),"rotation":True,"algorithm_version":data["algorithm_version"]}
         (ROOT/"test-results").mkdir(exist_ok=True)
         (ROOT/"test-results/live-result.json").write_text(json.dumps(result,indent=2),encoding="utf-8")

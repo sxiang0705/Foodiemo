@@ -124,6 +124,25 @@ def test_photos_order_mentions_ownership_delete(setup):
     assert list(app.state.storage_root.iterdir())==[]
 
 
+def test_capture_message_creates_comment_and_like_persists(setup):
+    c,mail,db,app=setup;register(c,mail)
+    r=c.post('/api/upload_memory_post',data={'initial_comment':'今天的午餐 🍜'},files={'files':('capture.jpg',jpeg(),'image/jpeg')})
+    assert r.status_code==200,r.text
+    record=r.json()['id']
+    post=c.get('/api/get_post/'+record).json()
+    assert post['comments'][0]['text']=='今天的午餐 🍜'
+    assert post['likes']==0 and post['isLiked'] is False
+    assert c.post('/api/posts/'+record+'/like').json()=={'status':'success','liked':True}
+    post=c.get('/api/get_post/'+record).json()
+    assert post['likes']==1 and post['isLiked'] is True
+    # The primary key makes repeated taps idempotent.
+    assert c.post('/api/posts/'+record+'/like').status_code==200
+    assert c.get('/api/get_post/'+record).json()['likes']==1
+    assert c.delete('/api/posts/'+record+'/like').json()=={'status':'success','liked':False}
+    post=c.get('/api/get_post/'+record).json()
+    assert post['likes']==0 and post['isLiked'] is False
+
+
 def test_otp_attempt_limit_expiry_and_resend(setup):
     c,mail,db,app=setup
     email='otp-limit@example.test'

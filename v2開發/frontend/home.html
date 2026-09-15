@@ -115,6 +115,9 @@
                 <!-- Kept for upload/result compatibility; the center view is the camera preview. -->
                 <img id="displayImg" alt="已上傳照片" style="display:none;">
                 <div id="captureFeedback" role="status" aria-live="polite" style="display:none;position:absolute;left:50%;bottom:24px;transform:translate(-50%,8px);padding:8px 14px;border-radius:18px;background:rgba(64,48,38,.78);color:#fff;font-size:14px;white-space:nowrap;z-index:4;">照片已拍攝</div>
+                <div id="captureMessageWrap" aria-label="照片留言" style="display:none;">
+                    <input id="captureMessage" type="text" maxlength="2000" autocomplete="off" placeholder="Add a message" aria-label="為這張照片新增留言">
+                </div>
             </div>
         </div>
     </div>
@@ -321,12 +324,14 @@
         const discardCaptureBtn = document.getElementById('discardCapture');
         const keepCaptureBtn = document.getElementById('keepCapture');
         const captureFeedback = document.getElementById('captureFeedback');
+        const captureMessageWrap = document.getElementById('captureMessageWrap');
+        const captureMessage = document.getElementById('captureMessage');
 
         const captureUiStyle=document.createElement('style');
-        captureUiStyle.textContent='            #captureReviewBar{position:fixed;left:0;right:0;bottom:calc(72px + 45px + env(safe-area-inset-bottom));height:64px;min-height:64px;padding:4px 24px 2px;align-items:center;justify-content:center;gap:14px;background:#F3ECE5;color:#806B5D;z-index:20;pointer-events:none;}            #captureReviewBar.show{display:flex!important;}            .capture-review-btn{width:50px;height:50px;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .14s ease,opacity .14s ease,background .14s ease;box-shadow:0 3px 8px rgba(95,70,53,.16);}            .capture-review-btn:active{transform:scale(.9);}            .capture-review-btn:disabled{opacity:.45;cursor:wait;}            .capture-review-btn.discard{background:#F3ECE5;color:#9C7C66;border:2px solid #9C7C66;}            .capture-review-btn.keep{background:#9C7C66;color:#fff;border:2px solid #9C7C66;}            .capture-review-hint{min-width:108px;text-align:center;font-size:13px;color:#806B5D;font-weight:600;}            .card.capture-flash::after{content:"";position:absolute;inset:0;border-radius:80px;background:#fff;pointer-events:none;z-index:5;animation:foodieCaptureFlash .32s ease-out forwards;}            #captureFeedback.show{display:block!important;animation:foodieCaptureFeedback 1.7s ease-out forwards;}            .shutter-btn.capture-pulse{animation:foodieShutterPulse .26s ease-out;}            @keyframes foodieCaptureFlash{0%{opacity:.85}100%{opacity:0}}            @keyframes foodieCaptureFeedback{0%{opacity:0;transform:translate(-50%,8px)}15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px)}}            @keyframes foodieShutterPulse{0%{transform:scale(1)}45%{transform:scale(.9)}100%{transform:scale(1)}}';
+        captureUiStyle.textContent='            #captureReviewBar{position:fixed;left:0;right:0;bottom:calc(72px + 45px + env(safe-area-inset-bottom));height:64px;min-height:64px;padding:4px 24px 2px;align-items:center;justify-content:center;gap:14px;background:#F3ECE5;color:#806B5D;z-index:20;pointer-events:none;}            #captureMessageWrap{position:absolute;left:12%;right:12%;bottom:24px;padding:2px 14px;border-radius:22px;background:rgba(243,236,229,.94);border:1px solid rgba(156,124,102,.25);box-shadow:0 4px 14px rgba(64,48,38,.12);z-index:6;pointer-events:auto;}            #captureMessageWrap.show{display:block!important;}            #captureMessage{display:block;width:100%;min-height:34px;padding:5px 2px;border:0;outline:none;background:transparent;color:#5b4b41;font:600 14px/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-align:center;}            #captureMessage::placeholder{color:#9f8d81;font-weight:500;}            #captureReviewBar.show{display:flex!important;}            .capture-review-btn{width:50px;height:50px;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .14s ease,opacity .14s ease,background .14s ease;box-shadow:0 3px 8px rgba(95,70,53,.16);}            .capture-review-btn:active{transform:scale(.9);}            .capture-review-btn:disabled{opacity:.45;cursor:wait;}            .capture-review-btn.discard{background:#F3ECE5;color:#9C7C66;border:2px solid #9C7C66;}            .capture-review-btn.keep{background:#9C7C66;color:#fff;border:2px solid #9C7C66;}            .capture-review-hint{min-width:108px;text-align:center;font-size:13px;color:#806B5D;font-weight:600;}            .card.capture-flash::after{content:"";position:absolute;inset:0;border-radius:80px;background:#fff;pointer-events:none;z-index:5;animation:foodieCaptureFlash .32s ease-out forwards;}            #captureFeedback.show{display:block!important;animation:foodieCaptureFeedback 1.7s ease-out forwards;}            .shutter-btn.capture-pulse{animation:foodieShutterPulse .26s ease-out;}            @keyframes foodieCaptureFlash{0%{opacity:.85}100%{opacity:0}}            @keyframes foodieCaptureFeedback{0%{opacity:0;transform:translate(-50%,8px)}15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px)}}            @keyframes foodieShutterPulse{0%{transform:scale(1)}45%{transform:scale(.9)}100%{transform:scale(1)}}';
         document.head.appendChild(captureUiStyle);
 
-        async function uploadFiles(fileList, sourceInput=null) {
+        async function uploadFiles(fileList, sourceInput=null, options={}) {
             actionOverlay.classList.remove('show');
             const files = Array.from(fileList || []);
             if (!files.length) return false;
@@ -337,6 +342,8 @@
             try {
                 for (const file of files) formData.append('files', await window.prepareFoodiemoPhoto(file));
                 formData.append('email', myEmail);
+                const initialComment = String(options.initialComment || '').trim();
+                if (initialComment) formData.append('initial_comment', initialComment);
                 const response = await fetch(`${API_BASE_URL}/upload_memory_post`, {method:'POST',body:formData});
                 const result = await response.json();
                 if (result.status !== 'success') throw new Error(result.detail || '上傳失敗');
@@ -382,9 +389,11 @@
         function setCaptureReview(active){
             captureReviewActive=active;
             captureReviewBar?.classList.toggle('show',active);
+            captureMessageWrap?.classList.toggle('show',active);
             if(!active){
                 if(capturePreview){capturePreview.pause?.();capturePreview.removeAttribute('src');capturePreview.style.display='none';}
                 if(captureFeedback)captureFeedback.classList.remove('show');
+                if(captureMessage)captureMessage.value='';
             }
         }
 
@@ -441,7 +450,8 @@
             if(captureFeedback)captureFeedback.classList.add('show');
             if(captureFeedback)captureFeedback.textContent='發文中…';
             const capture=pendingCapture;
-            const success=await uploadFiles([capture.file]);
+            const initialComment = captureMessage?.value.trim() || '';
+            const success=await uploadFiles([capture.file],null,{initialComment});
             if(success){
                 releasePendingCapture();
                 setCaptureReview(false);

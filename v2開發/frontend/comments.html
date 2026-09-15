@@ -133,17 +133,25 @@
             // 顯示當前貼文 ID 以供測試 (渲染在列表最上方)
             const comments = currentPost.comments || [];
             let html = '';
-
-            comments.forEach((c, index) => {
-                const isMe = (c.user === storedName);
-                let displayAvatar = normalizeAvatarUrl(c.avatar || (isMe ? userAvatarUrl : DEFAULT_AVATAR_URL));
-                const rowClass = (index === 0) ? 'caption-block' : 'comment-row';
-                const avatarClass = (index === 0) ? 'caption-avatar' : 'comment-avatar';
-
+            if (currentPost.caption) {
+                const captionAvatar = normalizeAvatarUrl(currentPost.userAvatar || userAvatarUrl || DEFAULT_AVATAR_URL);
                 html += `
-                    <div class="${rowClass}">
-                        <img src="${escapeHtml(displayAvatar)}" class="${avatarClass}" onerror="this.src=window.DEFAULT_AVATAR_URL">
-                        <div class="${(index === 0) ? 'caption-text-area' : 'comment-text-block'}">
+                    <div class="caption-block">
+                        <img src="${escapeHtml(captionAvatar)}" class="caption-avatar" onerror="this.src=window.DEFAULT_AVATAR_URL">
+                        <div class="caption-text-area">
+                            <span class="comment-user">${escapeHtml(currentPost.username || storedName)}</span>
+                            <span style="white-space: pre-wrap;">${escapeHtml(currentPost.caption)}</span>
+                        </div>
+                    </div>`;
+            }
+
+            comments.forEach((c) => {
+                const isMe = (c.user === storedName);
+                const displayAvatar = normalizeAvatarUrl(c.avatar || (isMe ? userAvatarUrl : DEFAULT_AVATAR_URL));
+                html += `
+                    <div class="comment-row">
+                        <img src="${escapeHtml(displayAvatar)}" class="comment-avatar" onerror="this.src=window.DEFAULT_AVATAR_URL">
+                        <div class="comment-text-block">
                             <span class="comment-user">${escapeHtml(c.user || c.user_name)}</span>
                             <span style="white-space: pre-wrap;">${escapeHtml(c.text)}</span>
                             ${c.timestamp ? `<div class="time-text">${new Date(c.timestamp).toLocaleString()}</div>` : ''}

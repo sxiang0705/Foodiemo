@@ -238,6 +238,7 @@
         let myPosts = [];
         let discoverPosts = [];
         let menuTimer = null;
+        const likeBusy = new Set();
 
         const icons = {
             more: "...",
@@ -447,14 +448,39 @@
             }
         };
 
-        window.toggleLike = function(feedType, postId) {
+        window.toggleLike = async function(feedType, postId) {
             const list = feedType === "mine" ? myPosts : discoverPosts;
             const post = list.find((item) => String(item.id) === String(postId));
             if (!post) return;
-            post.isLiked = !post.isLiked;
-            post.likes += post.isLiked ? 1 : -1;
-            document.getElementById("like-" + feedType + "-" + postId).innerHTML = post.isLiked ? icons.heartFilled : icons.heartOutline;
-            document.getElementById("likes-" + feedType + "-" + postId).textContent = post.likes + TEXT.likesSuffix;
+            const key = feedType + ":" + postId;
+            if (likeBusy.has(key)) return;
+            // Recommendation cards are static demo data; keep their visual toggle local.
+            if (feedType !== "mine" || !/^\d+$/.test(String(postId))) {
+                post.isLiked = !post.isLiked;
+                post.likes = Math.max(0, post.likes + (post.isLiked ? 1 : -1));
+                document.getElementById("like-" + feedType + "-" + postId).innerHTML = post.isLiked ? icons.heartFilled : icons.heartOutline;
+                document.getElementById("likes-" + feedType + "-" + postId).textContent = post.likes + TEXT.likesSuffix;
+                return;
+            }
+            likeBusy.add(key);
+            const nextLiked = !post.isLiked;
+            try {
+                const response = await fetch(
+                    API_BASE_URL + "/posts/" + encodeURIComponent(postId) + "/like",
+                    { method: nextLiked ? "POST" : "DELETE" }
+                );
+                if (!response.ok) throw new Error("like failed");
+                post.isLiked = nextLiked;
+                post.likes = Math.max(0, post.likes + (nextLiked ? 1 : -1));
+                const icon = document.getElementById("like-" + feedType + "-" + postId);
+                const count = document.getElementById("likes-" + feedType + "-" + postId);
+                if (icon) icon.innerHTML = post.isLiked ? icons.heartFilled : icons.heartOutline;
+                if (count) count.textContent = post.likes + TEXT.likesSuffix;
+            } catch (error) {
+                alert("愛心未保存，請稍後再試");
+            } finally {
+                likeBusy.delete(key);
+            }
         };
 
         function openEmbeddedFeature(url) {
