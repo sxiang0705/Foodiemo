@@ -54,6 +54,9 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked`、`commentCount` |
 | /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；首頁拍照可附 `initial_comment`（最多 2000 字）建立第一則留言；更新須 post_id |
 | /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；ID 以字串傳遞 |
+| /api/friends、/api/friends/search?q= | GET 好友、好友請求與名稱／Email 搜尋結果 |
+| /api/friends/requests | POST user_id；送出好友請求，對方批准後建立關係 |
+| /api/friends/requests/{id}/approve、/reject | POST；批准或忽略收到的好友請求 |
 | /api/posts/{id} | DELETE 整篇紀錄及照片引用 |
 | /api/posts/{id}/like | POST／DELETE；目前登入者對自己的紀錄新增／取消愛心，重複新增不會重複計數 |
 | /api/delete_single_photo | DELETE post_id/photo_url；只刪自己指定的一張 |

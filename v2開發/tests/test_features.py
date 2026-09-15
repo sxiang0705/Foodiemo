@@ -144,6 +144,23 @@ def test_capture_message_creates_comment_and_like_persists(setup):
     assert post['likes']==0 and post['isLiked'] is False
 
 
+def test_friend_search_request_approve_and_list(setup):
+    c,mail,db,app=setup
+    friend=register(c,mail,'friend@example.test','好友會員')
+    c.cookies.clear();me=register(c,mail,'member@example.test','目前會員')
+    result=c.get('/api/friends/search?q=好友').json()['items']
+    assert result[0]['id']==friend['id'] and result[0]['relationship']=='none'
+    request_id=c.post('/api/friends/requests',json={'user_id':int(friend['id'])}).json()['request_id']
+    assert c.get('/api/friends/search?q=好友').json()['items'][0]['relationship']=='pending_outgoing'
+    c.cookies.clear();assert c.post('/api/login',json={'email':friend['email'],'password':'Correct-password-1'}).status_code==200
+    incoming=c.get('/api/friends').json()['incoming']
+    assert incoming[0]['request_id']==request_id and incoming[0]['id']==me['id']
+    assert c.post('/api/friends/requests/'+request_id+'/approve').status_code==200
+    assert c.get('/api/friends').json()['friends'][0]['id']==me['id']
+    c.cookies.clear();assert c.post('/api/login',json={'email':me['email'],'password':'Correct-password-1'}).status_code==200
+    assert c.get('/api/friends').json()['friends'][0]['id']==friend['id']
+
+
 def test_otp_attempt_limit_expiry_and_resend(setup):
     c,mail,db,app=setup
     email='otp-limit@example.test'

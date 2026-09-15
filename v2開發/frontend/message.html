@@ -151,6 +151,8 @@
         </a>
     </div>
 
+    <div id="friendRequestNotifications" class="notification-list" style="padding-top:0;"></div>
+
     <div class="notification-list">
 
         <div class="notif-item">
@@ -233,7 +235,30 @@
 
     </div>
 
+    <script src="env.js"></script><script src="config.js"></script>
     <script>
+    const FRIENDS_API = DB_CONFIG.apiUrl.replace(/\/$/, '');
+    const friendRequestNotifications = document.getElementById('friendRequestNotifications');
+    function renderFriendRequests(items) {
+        if (!friendRequestNotifications) return;
+        if (!items.length) { friendRequestNotifications.innerHTML = ''; return; }
+        friendRequestNotifications.innerHTML = '<div style="padding:12px 24px 4px;font-size:16px;font-weight:700;color:#6D5D50;">好友請求</div>' + items.map(item => `
+            <div class="notif-item" data-request-id="${escapeHtml(item.request_id)}">
+                <div class="avatar-area"><img src="${escapeHtml(normalizeAvatarUrl(item.avatar_url || window.DEFAULT_AVATAR_URL))}" class="avatar" alt="" onerror="this.src=window.DEFAULT_AVATAR_URL"></div>
+                <div class="text-area"><span class="username">${escapeHtml(item.name || '使用者')}</span><span class="action-text"> 想和你成為好友</span><span class="time">${new Date(item.created_at).toLocaleString()}</span></div>
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;"><button type="button" data-action="approve" style="border:0;border-radius:14px;background:#9C7C66;color:#fff;padding:7px 10px;font-weight:700;white-space:nowrap;">批准</button><button type="button" data-action="reject" style="border:0;border-radius:14px;background:rgba(156,124,102,.14);color:#806B5D;padding:7px 10px;font-weight:700;white-space:nowrap;">忽略</button></div>
+            </div>`).join('');
+        friendRequestNotifications.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => handleFriendRequest(button)));
+    }
+    async function loadFriendRequests() {
+        try { const response = await fetch(FRIENDS_API + '/friends'); if (!response.ok) return; const data = await response.json(); renderFriendRequests(data.incoming || []); } catch (_) {}
+    }
+    async function handleFriendRequest(button) {
+        const row=button.closest('[data-request-id]'); if(!row)return; const id=row.dataset.requestId; const action=button.dataset.action; row.querySelectorAll('button').forEach(item=>item.disabled=true);
+        try { const response=await fetch(FRIENDS_API + '/friends/requests/' + encodeURIComponent(id) + '/' + (action==='approve'?'approve':'reject'),{method:'POST'}); if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.detail||'好友請求處理失敗');} await loadFriendRequests(); } catch(error){alert(error.message);row.querySelectorAll('button').forEach(item=>item.disabled=false);}
+    }
+    window.addEventListener('load',()=>window.FoodiemoSessionReady?.then(loadFriendRequests));
+
     function closeEmbeddedFeature() {
         try {
             const feature = window.top.document.getElementById('featureFrame');

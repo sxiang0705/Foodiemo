@@ -62,7 +62,7 @@ def main():
             baseline.write_bytes(schema)
         elif baseline.read_bytes() != schema:
             revision=sql("SELECT version_num FROM public.alembic_version;", "project_db").decode().strip()
-            if revision != "0002_accounts_records":
+            if revision not in {"0002_accounts_records", "0003_record_likes"}:
                 raise RuntimeError("Unknown schema revision; review instead of overwriting history")
             # Keep immutable 0001 history. The full current schema is restored and compared below.
         restore_db = "foodiemo_v2_restore_" + stamp

@@ -1,6 +1,6 @@
 const {chromium}=require('playwright');
 const fs=require('fs'),path=require('path'),assert=require('assert/strict');
-const BASE='http://127.0.0.1:8004',EMAIL=process.env.V2_BROWSER_EMAIL;
+const BASE='http://127.0.0.1:8004',EMAIL=process.env.V2_BROWSER_EMAIL,FRIEND_EMAIL=process.env.V2_BROWSER_FRIEND_EMAIL;
 if(!EMAIL||!process.env.V2_BROWSER_MAILBOX)throw Error('Use guarded Python launcher');
 const checks=[];const pass=x=>{checks.push(x);console.log('PASS '+x)};
 const otp=purpose=>JSON.parse(fs.readFileSync(process.env.V2_BROWSER_MAILBOX,'utf8')).filter(x=>x.email===EMAIL&&x.purpose===purpose).at(-1).code;
@@ -20,6 +20,9 @@ const otp=purpose=>JSON.parse(fs.readFileSync(process.env.V2_BROWSER_MAILBOX,'ut
  for(let i=0;i<6;i++){await page.click('#optionLeft');await page.click('#nextBtn');}
  await page.waitForURL('**/index.html?tab=home');
  const me=await (await context.request.get(BASE+'/api/me')).json();assert.equal(Object.keys(me.preferences.answers).length,6);pass('六題偏好已保存 PostgreSQL');
+ await page.goto(BASE+'/friends.html');await page.fill('#friendSearch','Browser Friend');await page.click('#searchBtn');await page.locator('#searchResults [data-user-id]').waitFor();await page.locator('#searchResults [data-user-id]').click();await page.waitForFunction(()=>document.querySelector('#searchResults [data-user-id]')?.textContent.includes('已送出'));pass('好友頁搜尋帳號並送出請求');
+ await context.request.post(BASE+'/api/logout');await context.request.post(BASE+'/api/login',{data:{email:FRIEND_EMAIL,password:'Friend-password-1'}});await page.goto(BASE+'/message.html');await page.locator('#friendRequestNotifications [data-action=approve]').waitFor();await page.locator('#friendRequestNotifications [data-action=approve]').click();await page.waitForFunction(()=>!document.querySelector('#friendRequestNotifications [data-action=approve]'));pass('最新消息批准好友請求');
+ await context.request.post(BASE+'/api/logout');await context.request.post(BASE+'/api/login',{data:{email:EMAIL,password:'Browser-password-1'}});await page.goto(BASE+'/friends.html');await page.locator('#friendList').getByText('Browser Friend').waitFor();pass('好友列表顯示已建立關係');
  await page.goto(BASE+'/edit.html');await page.setInputFiles('#imageLoader',[path.resolve('frontend/IMG_1940.jpg'),path.resolve('frontend/IMG_3535.jpg')]);
  await page.click('#locationBtn');await page.getByRole('textbox',{name:'搜尋',exact:true}).fill('Browser');
  await page.locator('.picker-list button').filter({hasText:'Browser Restaurant'}).click();await page.locator('dialog [data-action=apply]').click();

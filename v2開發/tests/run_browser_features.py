@@ -40,7 +40,7 @@ try:
         if server.started:break
         time.sleep(.1)
     assert server.started
-    env=dict(os.environ,V2_BROWSER_EMAIL=emails[0],V2_BROWSER_MAILBOX=str(mailbox))
+    env=dict(os.environ,V2_BROWSER_EMAIL=emails[0],V2_BROWSER_FRIEND_EMAIL=emails[1],V2_BROWSER_MAILBOX=str(mailbox))
     result=subprocess.run(['node',str(ROOT/'tests/features.cjs')],cwd=ROOT,env=env)
     code=result.returncode
 finally:
