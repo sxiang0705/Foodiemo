@@ -52,7 +52,7 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/me | GET 會員身分、avatar_url、is_premium、preferences |
 | /api/preferences | PUT version=1、answers 六題 key/value；選項需完全符合原六題 |
 | /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked`、`commentCount` |
-| /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；首頁拍照可附 `initial_comment`（最多 2000 字）建立第一則留言；更新須 post_id |
+| /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；可附 `initial_comment`（最多 2000 字）建立第一則留言；沒有餐廳選擇時可附 `photo_location_text`（最多 200 字）保存照片 EXIF GPS 的顯示標籤；更新須 post_id |
 | /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；ID 以字串傳遞 |
 | /api/friends、/api/friends/search?q= | GET 好友、好友請求與名稱／Email 搜尋結果 |
 | /api/friends/requests | POST user_id；送出好友請求，對方批准後建立關係 |
@@ -69,3 +69,5 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 photo_order 是 JSON 陣列，例：`[{"existing":"/api/photos/12"},{"new":0}]`。new 是 files 順序索引；existing 必須屬於本篇。全部新檔案必須使用一次，不接受重複／他人的照片。未傳順序時以新檔案原順序保存（首頁直接上傳用）。mention_ids 為會員 ID JSON 陣列，最多 10 人。
 
 CaptureMailer 僅由隔離測試注入，HTTP 回應無 OTP preview；正式 SMTP 由忽略的本機設定提供並已完成實信驗收。付款沒有外部金流請求；既有 Google OAuth API 尚未實作。
+
+`photo_location_text` 不是餐廳 ID，也不會取得餐廳資料；目前用既有 `records.location_text` 保存照片 GPS 的短標籤，後端在圖片實體化時移除原始 EXIF。照片 GPS 由前端在畫布壓縮前讀取，沒有 GPS 時不會自動呼叫瀏覽器定位。

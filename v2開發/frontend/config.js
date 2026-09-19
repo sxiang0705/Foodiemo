@@ -265,3 +265,71 @@ window.prepareFoodiemoPhoto = function(file) {
         img.src=url;
     });
 };
+
+// Read GPS coordinates before a canvas resize strips the original EXIF block.
+// Mobile Safari and Android browsers expose the original JPEG bytes through a
+// file input, so this keeps the photo's own capture location as the first choice
+// for the editor. A missing or unsupported EXIF block simply returns null.
+window.readFoodiemoPhotoGps = async function(file) {
+    if (!file || !/^image\/jpe?g$/i.test(file.type || '') || typeof file.arrayBuffer !== 'function') return null;
+    try {
+        const buffer = await file.arrayBuffer();
+        const view = new DataView(buffer);
+        if (view.byteLength < 12 || view.getUint16(0, false) !== 0xFFD8) return null;
+        let offset = 2;
+        while (offset + 4 <= view.byteLength) {
+            if (view.getUint8(offset) !== 0xFF) { offset += 1; continue; }
+            const marker = view.getUint8(offset + 1); offset += 2;
+            if (marker === 0xD9 || marker === 0xDA) break;
+            const length = view.getUint16(offset, false);
+            if (length < 2 || offset + length > view.byteLength) break;
+            if (marker === 0xE1 && length >= 8 &&
+                new TextDecoder().decode(new Uint8Array(buffer, offset + 2, 6)) === 'Exif\0\0') {
+                const tiff = offset + 8;
+                const little = view.getUint16(tiff, false) === 0x4949;
+                const u16 = at => view.getUint16(tiff + at, little);
+                const u32 = at => view.getUint32(tiff + at, little);
+                const typeSize = {1:1, 2:1, 3:2, 4:4, 5:8, 7:1};
+                const readEntry = (base, entry) => {
+                    const type = u16(base + entry + 2), count = u32(base + entry + 4);
+                    const size = (typeSize[type] || 0) * count;
+                    if (!size) return null;
+                    const data = size <= 4 ? tiff + base + entry + 8 : tiff + u32(base + entry + 8);
+                    if (data < 0 || data + size > view.byteLength) return null;
+                    if (type === 2) return new TextDecoder().decode(new Uint8Array(buffer, data, Math.max(0, count - 1)));
+                    if (type === 5) {
+                        const values=[];
+                        for (let i=0;i<count;i++) { const denominator=u32(data+i*8); values.push(denominator ? u32(data+i*8)/denominator : 0); }
+                        return values;
+                    }
+                    if (type === 3) return Array.from({length:count},(_,i)=>u16(data+i*2));
+                    if (type === 4) return Array.from({length:count},(_,i)=>u32(data+i*4));
+                    return null;
+                };
+                const readIfd = base => {
+                    const count = u16(base), entries = {};
+                    for(let i=0;i<count;i++) {
+                        const entry = base + 2 + i*12;
+                        if (entry + 12 > view.byteLength) break;
+                        entries[u16(entry)] = readEntry(base, i*12);
+                    }
+                    return entries;
+                };
+                const ifd0 = readIfd(u32(4));
+                const gpsOffset = Array.isArray(ifd0[0x8825]) ? ifd0[0x8825][0] : ifd0[0x8825];
+                if (typeof gpsOffset !== 'number') return null;
+                const gps = readIfd(gpsOffset);
+                const lat = gps[2], lon = gps[4];
+                if (!Array.isArray(lat) || lat.length < 3 || !Array.isArray(lon) || lon.length < 3) return null;
+                const latitude = lat[0] + lat[1] / 60 + lat[2] / 3600;
+                const longitude = lon[0] + lon[1] / 60 + lon[2] / 3600;
+                if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude > 90 || longitude > 180) return null;
+                const signedLat = String(gps[1] || 'N').toUpperCase() === 'S' ? -latitude : latitude;
+                const signedLon = String(gps[3] || 'E').toUpperCase() === 'W' ? -longitude : longitude;
+                return {latitude:signedLat, longitude:signedLon, source:'photo-exif', label:`照片位置 ${signedLat.toFixed(5)}, ${signedLon.toFixed(5)}`};
+            }
+            offset += length;
+        }
+    } catch (_) {}
+    return null;
+};

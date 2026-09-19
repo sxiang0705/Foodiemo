@@ -435,10 +435,14 @@
             }
         }
 
+        function openEmbeddedFeature(url){
+            if(window.top!==window){window.top.postMessage({type:'openFeature',url},'*');return true;}
+            window.top.location.href=url;return true;
+        }
         // --- 跳轉與登出 ---
         function handleSubscription() {
             if (localStorage.getItem('isPremiumUser') !== 'true') {
-                window.top.location.href = "payment.html?from=profile";
+                openEmbeddedFeature("payment.html?from=profile");
             }
         }
 

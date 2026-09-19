@@ -64,11 +64,15 @@ async def save_post(request:Request,c=Depends(connection)):
         if uid==user["user_id"] or not c.execute(text("SELECT 1 FROM public.users WHERE user_id=:u AND email_verified"),{"u":uid}).scalar():
             raise HTTPException(422,"標註會員不存在或無法選取")
     location=None;restaurant_id=None
+    photo_location_text=str(form.get("photo_location_text","")).strip()
+    if len(photo_location_text)>200:raise HTTPException(422,"照片位置資訊過長")
     if form.get("restaurant_id"):
         try:restaurant_id=int(form["restaurant_id"])
         except ValueError:raise HTTPException(422,"地點格式不正確") from None
         location=c.execute(text("SELECT title FROM public.restaurant_rows WHERE restaurant_id=:r"),{"r":restaurant_id}).scalar()
         if location is None:raise HTTPException(422,"找不到選取的地點")
+    elif photo_location_text:
+        location=photo_location_text
     old=c.execute(text("SELECT photo_id,storage_path FROM public.photos WHERE record_id=:r ORDER BY sort_order,photo_id"),{"r":row["record_id"]}).mappings().all() if row else []
     old_urls={"/api/photos/"+str(p["photo_id"]):p for p in old}
     files=form.getlist("files")

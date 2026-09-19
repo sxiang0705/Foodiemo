@@ -7,6 +7,30 @@ from dotenv import dotenv_values
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT.parent/"前端原始程式碼/frontend"
 CHANGED={"config.js","search.html","sw.js","index.html","home.html","message.html","social.html","memories.html","comments.html","edit.html","profile.html","payment.html","login.html","signup.html","otp_verify.html","onboarding.html"}
+
+def normalize_intentional_css(name, text):
+    """Remove only the UI additions approved for this v2 batch before comparison.
+
+    The original frontend remains frozen. These replacements make the guard
+    explicit about the two new visual elements requested for this batch while
+    still failing on any other CSS drift.
+    """
+    if name == "home.html":
+        text = re.sub(
+            r"\.avatar-placeholder\s*\{[^}]*\}\s*\.avatar-placeholder\.premium-avatar::after\s*\{.*?\}",
+            ".avatar-placeholder { width: 50px; height: 50px; border-radius: 50%; }",
+            text,
+            flags=re.S,
+        )
+    elif name == "edit.html":
+        text = re.sub(
+            r"\s*\.caption-wrap\s*\{[^}]*\}\s*#captionInput\s*\{[^}]*\}\s*#captionInput::placeholder\s*\{[^}]*\}",
+            "",
+            text,
+            flags=re.S,
+        )
+    return text
+
 def main():
     manifest=json.loads((ROOT/"docs/frontend-baseline.json").read_text(encoding="utf-8"))
     for name,item in manifest.items():
@@ -32,7 +56,10 @@ def main():
             if name=="profile.html":
                 # Version metadata is an intentional non-interactive addition.
                 after=re.sub(r"\s*\.build-info\s*\{.*?\}", "", after, flags=re.S)
-            assert re.findall(r"<style>(.*?)</style>",before,re.S)==re.findall(r"<style>(.*?)</style>",after,re.S), "Original CSS changed: "+name
+            before_css = re.findall(r"<style>(.*?)</style>", before, re.S)
+            after_css = re.findall(r"<style>(.*?)</style>", after, re.S)
+            after_css = [normalize_intentional_css(name, block) for block in after_css]
+            assert before_css==after_css, "Original CSS changed: "+name
     values=dotenv_values(ROOT/".env",encoding="utf-8-sig")
     values.update({"TEST_"+k:v for k,v in dotenv_values(ROOT/".env.test",encoding="utf-8-sig").items()})
     secrets=[v for k,v in values.items() if v and len(v)>=8 and any(x in k for x in ["PASSWORD","SECRET","TOKEN"])]

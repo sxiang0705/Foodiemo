@@ -63,6 +63,9 @@
 
         /* --- 4. 下方網格 --- */
         .grid-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 2px; }
+        .caption-wrap{margin:14px 16px 8px;padding:4px 14px;border:1px solid #e0d4ca;border-radius:22px;background:#F3ECE5;box-shadow:0 3px 10px rgba(95,70,53,.08);}
+        #captionInput{display:block;width:100%;min-height:36px;padding:6px 2px;border:0;outline:0;background:transparent;color:#5b4b41;font-size:15px;text-align:center;}
+        #captionInput::placeholder{color:#9f8d81;}
         .grid-item { position: relative; aspect-ratio: 1/1; overflow: hidden; background: #eee; cursor: pointer; }
         .grid-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; transition: opacity 0.2s; }
         .grid-item.active img { opacity: 1; }
@@ -117,6 +120,9 @@
             </div>
         </div>
         
+        <div class="caption-wrap">
+            <input id="captionInput" type="text" maxlength="2000" autocomplete="off" placeholder="Add a message" aria-label="為這篇貼文新增留言">
+        </div>
         <div class="grid-gallery" id="feedGrid"></div>
         <input type="file" id="imageLoader" accept="image/*" multiple style="display: none;">
     </div>
@@ -152,6 +158,7 @@
         const backBtn = document.getElementById('backBtn');
         const locationBtn = document.getElementById('locationBtn');
         const pageTitle = document.getElementById('pageTitle');
+        const captionInput = document.getElementById('captionInput');
 
         let pendingImages = []; // { type: 'file'|'url', data: File|String }
         let selectedIndices = []; // 選取的順序
@@ -185,6 +192,7 @@
 
         // --- 5. 互動 ---
         let selectedPlace=null, selectedMentions=[];
+        let selectedPhotoGps=null;
         function showSelections(){
             locationBtn.classList.toggle('active',!!selectedPlace);
             locationBtn.querySelector('.btn-text').textContent=selectedPlace?.name || '選擇地點';
@@ -197,6 +205,10 @@
             if(values!==null){selectedMentions=values;showSelections();}
         });
         locationBtn.addEventListener('click',async()=>{
+            if(selectedPlace?.source==='photo-exif'){
+                if(!confirm('目前使用照片 GPS 位置；要改用餐廳搜尋嗎？'))return;
+                selectedPlace=null;showSelections();
+            }
             const values=await FoodiemoPickers.choose('locations',selectedPlace?[selectedPlace]:[]);
             if(values!==null){selectedPlace=values[0]||null;showSelections();}
         });
@@ -210,8 +222,16 @@
             shareBtn.disabled=true;choose.disabled=true;choose.textContent='照片處理中…';
             try {
                 const prepared=[];
-                for(const file of files)prepared.push(await window.prepareFoodiemoPhoto(file));
-                for(const file of prepared){pendingImages.push({type:'file',data:file});selectedIndices.push(pendingImages.length-1);}
+                for(const file of files){
+                    const gps=await window.readFoodiemoPhotoGps?.(file);
+                    prepared.push({file:await window.prepareFoodiemoPhoto(file),gps});
+                }
+                for(const entry of prepared){
+                    pendingImages.push({type:'file',data:entry.file,gps:entry.gps});
+                    if(entry.gps && !selectedPhotoGps) selectedPhotoGps=entry.gps;
+                    selectedIndices.push(pendingImages.length-1);
+                }
+                if(selectedPhotoGps && !selectedPlace){selectedPlace={id:null,name:selectedPhotoGps.label,source:'photo-exif',gps:selectedPhotoGps};showSelections();}
                 currentMainIndex=pendingImages.length-1;
                 renderMainPreview();renderGrid();
             }catch(error){alert(error.message || '照片讀取失敗，請重新選擇');}
@@ -319,7 +339,10 @@
                 if (editPostId) formData.append("post_id", editPostId);
 
                 formData.append("caption", "");
-                if(selectedPlace)formData.append("restaurant_id",selectedPlace.id);
+                const caption=captionInput?.value.trim()||"";
+                if(caption)formData.append("initial_comment",caption);
+                if(selectedPlace?.id)formData.append("restaurant_id",selectedPlace.id);
+                else if(selectedPlace?.source==="photo-exif")formData.append("photo_location_text",selectedPlace.name);
                 formData.append("mention_ids",JSON.stringify(selectedMentions.map(x=>x.id)));
                 const photoOrder=[];let fileIndex=0;
                 for(const idx of selectedIndices){

@@ -126,6 +126,14 @@
         // --- 1. 配置與初始化 ---
         const API_BASE_URL = DB_CONFIG.apiUrl.replace(/\/$/, '');
 
+        function closeEmbeddedFeature(){
+            try {
+                const feature=window.top.document.getElementById('featureFrame');
+                if(feature && feature.contentWindow===window){window.top.postMessage({type:'closeFeature'},'*');return true;}
+            } catch (_) {}
+            return false;
+        }
+        window.FoodiemoSessionReady?.then(()=>window.signalFoodiemoFeatureReady?.());
         // 🌟 強力跳轉邏輯：精準回歸來源頁
         function forceNavigateBack() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -146,6 +154,8 @@
                 // 預設保險路徑
                 targetUrl = "index.html";
             }
+
+            if(closeEmbeddedFeature()) return;
 
             console.log("🚀 執行強力導航回歸：", targetUrl);
 

@@ -13,7 +13,7 @@
         /* Header */
         .header { flex-shrink: 0; padding: 30px 24px 5px 24px; display: flex; justify-content: space-between; align-items: center; }
         .brown-btn { background-color: #9C7C66; display: flex; justify-content: center; align-items: center; cursor: pointer; }
-        .avatar-placeholder { width: 50px; height: 50px; border-radius: 50%; }
+        .avatar-placeholder { width: 50px; height: 50px; border-radius: 50%; position:relative; z-index:0; }        .avatar-placeholder.premium-avatar::after{content:"";position:absolute;inset:-5px;border:2px solid #D9A441;border-radius:12px;transform:rotate(45deg);pointer-events:none;box-shadow:0 0 0 1px rgba(217,164,65,.22),0 2px 5px rgba(125,92,33,.2);z-index:1;}
         .search-pill { height: 50px; width: 140px; border-radius: 25px; display: flex; justify-content: flex-start; align-items: center; padding-left: 15px; }
         .chat-btn { width: 50px; height: 50px; border-radius: 50%; }
 
@@ -116,7 +116,14 @@
                 <img id="displayImg" alt="已上傳照片" style="display:none;">
                 <div id="captureFeedback" role="status" aria-live="polite" style="display:none;position:absolute;left:50%;bottom:24px;transform:translate(-50%,8px);padding:8px 14px;border-radius:18px;background:rgba(64,48,38,.78);color:#fff;font-size:14px;white-space:nowrap;z-index:4;">照片已拍攝</div>
                 <div id="captureMessageWrap" aria-label="照片留言" style="display:none;">
+                    <button type="button" id="captureTagFriend" class="capture-tag-btn" aria-label="標記朋友" title="標記朋友">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a7 7 0 0 1 14 0"></path><path d="M19 8v6M16 11h6"></path></svg>
+                    </button>
                     <input id="captureMessage" type="text" maxlength="2000" autocomplete="off" placeholder="Add a message" aria-label="為這張照片新增留言">
+                    <button type="button" id="captureTagLocation" class="capture-tag-btn" aria-label="標記地點" title="標記地點">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2"></circle></svg>
+                    </button>
+                    <div id="captureTagSummary" aria-live="polite"></div>
                 </div>
             </div>
         </div>
@@ -151,6 +158,7 @@
     
     <script src="env.js"></script>
     <script src="config.js"></script>
+    <script src="static/api/pickers.js"></script>
     <script>
         // --- 1. 全域變數與初始化 ---
         function openFeaturePage(url){
@@ -294,8 +302,13 @@
             }); } catch(e) { imgElement.alt='照片暫時更新失敗，請稍後重試'; markHeroReady(); }
         }
 
+        function updatePremiumAvatar(){
+            const avatarDiv=document.querySelector('.avatar-placeholder');
+            avatarDiv?.classList.toggle('premium-avatar',localStorage.getItem('isPremiumUser')==='true');
+        }
         // 4. 使用者頭像載入 (整合 API 同步版)
         async function loadUserProfile() {
+            updatePremiumAvatar();
             const avatarDiv = document.querySelector('.avatar-placeholder');
             if (!avatarDiv) { markAvatarReady(); return; }
 
@@ -328,9 +341,14 @@
         const captureFeedback = document.getElementById('captureFeedback');
         const captureMessageWrap = document.getElementById('captureMessageWrap');
         const captureMessage = document.getElementById('captureMessage');
+        const captureTagFriend = document.getElementById('captureTagFriend');
+        const captureTagLocation = document.getElementById('captureTagLocation');
+        const captureTagSummary = document.getElementById('captureTagSummary');
+        let captureMentions = [];
+        let capturePlace = null;
 
         const captureUiStyle=document.createElement('style');
-        captureUiStyle.textContent='            #captureReviewBar{position:fixed;left:0;right:0;bottom:calc(72px + 45px + env(safe-area-inset-bottom));height:64px;min-height:64px;padding:4px 24px 2px;align-items:center;justify-content:center;gap:14px;background:#F3ECE5;color:#806B5D;z-index:20;pointer-events:none;}            #captureMessageWrap{position:absolute;left:12%;right:12%;bottom:24px;padding:2px 14px;border-radius:22px;background:rgba(243,236,229,.94);border:1px solid rgba(156,124,102,.25);box-shadow:0 4px 14px rgba(64,48,38,.12);z-index:6;pointer-events:auto;}            #captureMessageWrap.show{display:block!important;}            #captureMessage{display:block;width:100%;min-height:34px;padding:5px 2px;border:0;outline:none;background:transparent;color:#5b4b41;font:600 14px/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-align:center;}            #captureMessage::placeholder{color:#9f8d81;font-weight:500;}            #captureReviewBar.show{display:flex!important;}            .capture-review-btn{width:50px;height:50px;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .14s ease,opacity .14s ease,background .14s ease;box-shadow:0 3px 8px rgba(95,70,53,.16);}            .capture-review-btn:active{transform:scale(.9);}            .capture-review-btn:disabled{opacity:.45;cursor:wait;}            .capture-review-btn.discard{background:#F3ECE5;color:#9C7C66;border:2px solid #9C7C66;}            .capture-review-btn.keep{background:#9C7C66;color:#fff;border:2px solid #9C7C66;}            .capture-review-hint{min-width:108px;text-align:center;font-size:13px;color:#806B5D;font-weight:600;}            .card.capture-flash::after{content:"";position:absolute;inset:0;border-radius:80px;background:#fff;pointer-events:none;z-index:5;animation:foodieCaptureFlash .32s ease-out forwards;}            #captureFeedback.show{display:block!important;animation:foodieCaptureFeedback 1.7s ease-out forwards;}            .shutter-btn.capture-pulse{animation:foodieShutterPulse .26s ease-out;}            @keyframes foodieCaptureFlash{0%{opacity:.85}100%{opacity:0}}            @keyframes foodieCaptureFeedback{0%{opacity:0;transform:translate(-50%,8px)}15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px)}}            @keyframes foodieShutterPulse{0%{transform:scale(1)}45%{transform:scale(.9)}100%{transform:scale(1)}}';
+        captureUiStyle.textContent='            #captureReviewBar{position:fixed;left:0;right:0;bottom:calc(72px + 45px + env(safe-area-inset-bottom));height:64px;min-height:64px;padding:4px 24px 2px;align-items:center;justify-content:center;gap:14px;background:#F3ECE5;color:#806B5D;z-index:20;pointer-events:none;}            #captureMessageWrap{position:absolute;left:8%;right:8%;bottom:20px;padding:3px 8px;border-radius:22px;background:rgba(243,236,229,.96);border:1px solid rgba(156,124,102,.25);box-shadow:0 4px 14px rgba(64,48,38,.12);z-index:6;pointer-events:auto;display:flex;align-items:center;gap:4px;}            #captureMessageWrap.show{display:flex!important;}            #captureMessage{display:block;flex:1;min-width:0;width:100%;min-height:34px;padding:5px 2px;border:0;outline:none;background:transparent;color:#5b4b41;font:600 14px/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-align:center;}            #captureMessage::placeholder{color:#9f8d81;font-weight:500;}            .capture-tag-btn{width:32px;height:32px;flex:0 0 32px;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:transparent;color:#9C7C66;cursor:pointer;}            .capture-tag-btn.active{background:#9C7C66;color:#fff;}            #captureTagSummary{position:absolute;left:50%;bottom:-22px;transform:translateX(-50%);font-size:11px;color:#806B5D;white-space:nowrap;pointer-events:none;}            #captureReviewBar.show{display:flex!important;}            .capture-review-btn{width:50px;height:50px;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .14s ease,opacity .14s ease,background .14s ease;box-shadow:0 3px 8px rgba(95,70,53,.16);}            .capture-review-btn:active{transform:scale(.9);}            .capture-review-btn:disabled{opacity:.45;cursor:wait;}            .capture-review-btn.discard{background:#F3ECE5;color:#9C7C66;border:2px solid #9C7C66;}            .capture-review-btn.keep{background:#9C7C66;color:#fff;border:2px solid #9C7C66;}            .capture-review-hint{min-width:108px;text-align:center;font-size:13px;color:#806B5D;font-weight:600;}            .card.capture-flash::after{content:"";position:absolute;inset:0;border-radius:80px;background:#fff;pointer-events:none;z-index:5;animation:foodieCaptureFlash .32s ease-out forwards;}            #captureFeedback.show{display:block!important;animation:foodieCaptureFeedback 1.7s ease-out forwards;}            .shutter-btn.capture-pulse{animation:foodieShutterPulse .26s ease-out;}            @keyframes foodieCaptureFlash{0%{opacity:.85}100%{opacity:0}}            @keyframes foodieCaptureFeedback{0%{opacity:0;transform:translate(-50%,8px)}15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px)}}            @keyframes foodieShutterPulse{0%{transform:scale(1)}45%{transform:scale(.9)}100%{transform:scale(1)}}';
         document.head.appendChild(captureUiStyle);
 
         async function uploadFiles(fileList, sourceInput=null, options={}) {
@@ -346,6 +364,10 @@
                 formData.append('email', myEmail);
                 const initialComment = String(options.initialComment || '').trim();
                 if (initialComment) formData.append('initial_comment', initialComment);
+                const mentionIds = Array.isArray(options.mentionIds) ? options.mentionIds : [];
+                if (mentionIds.length) formData.append('mention_ids', JSON.stringify(mentionIds));
+                if (options.restaurantId) formData.append('restaurant_id', String(options.restaurantId));
+                if (options.photoLocationText) formData.append('photo_location_text', String(options.photoLocationText));
                 const response = await fetch(`${API_BASE_URL}/upload_memory_post`, {method:'POST',body:formData});
                 const result = await response.json();
                 if (result.status !== 'success') throw new Error(result.detail || '上傳失敗');
@@ -383,6 +405,35 @@
             try { navigator.vibrate?.(35); } catch(e) {}
         }
 
+        function updateCaptureTags(){
+            captureTagFriend?.classList.toggle('active', captureMentions.length > 0);
+            captureTagLocation?.classList.toggle('active', !!capturePlace);
+            captureTagFriend?.setAttribute('title', captureMentions.length ? captureMentions.map(item=>item.name).join('、') : '標記朋友');
+            captureTagLocation?.setAttribute('title', capturePlace?.name || '標記地點');
+            if (captureTagSummary) {
+                const parts=[];
+                if (captureMentions.length) parts.push('朋友：'+captureMentions.map(item=>item.name).join('、'));
+                if (capturePlace?.name) parts.push('地點：'+capturePlace.name);
+                captureTagSummary.textContent=parts.join('　');
+            }
+        }
+        async function chooseCaptureFriends(){
+            if (!window.FoodiemoPickers) return;
+            const values=await window.FoodiemoPickers.choose('members',captureMentions);
+            if(values!==null){captureMentions=values;updateCaptureTags();}
+        }
+        async function chooseCaptureLocation(){
+            if (capturePlace?.source === 'photo-exif') {
+                const keepGps=confirm('已從照片讀到 GPS 位置，要使用照片位置嗎？');
+                if(keepGps){updateCaptureTags();return;}
+                capturePlace=null;
+            }
+            if (!window.FoodiemoPickers) return;
+            const values=await window.FoodiemoPickers.choose('locations',capturePlace?[capturePlace]:[]);
+            if(values!==null){capturePlace=values[0]||null;updateCaptureTags();}
+        }
+        captureTagFriend?.addEventListener('click',chooseCaptureFriends);
+        captureTagLocation?.addEventListener('click',chooseCaptureLocation);
         function releasePendingCapture(){
             if(pendingCapture?.url)URL.revokeObjectURL(pendingCapture.url);
             pendingCapture=null;
@@ -396,6 +447,7 @@
                 if(capturePreview){capturePreview.pause?.();capturePreview.removeAttribute('src');capturePreview.style.display='none';}
                 if(captureFeedback)captureFeedback.classList.remove('show');
                 if(captureMessage)captureMessage.value='';
+                captureMentions=[];capturePlace=null;updateCaptureTags();
             }
         }
 
@@ -453,7 +505,7 @@
             if(captureFeedback)captureFeedback.textContent='發文中…';
             const capture=pendingCapture;
             const initialComment = captureMessage?.value.trim() || '';
-            const success=await uploadFiles([capture.file],null,{initialComment});
+            const success=await uploadFiles([capture.file],null,{initialComment,mentionIds:captureMentions.map(item=>item.id),restaurantId:capturePlace?.id,photoLocationText:capturePlace?.source==='photo-exif'?capturePlace.name:''});
             if(success){
                 releasePendingCapture();
                 setCaptureReview(false);
