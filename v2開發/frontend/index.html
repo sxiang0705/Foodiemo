@@ -224,6 +224,13 @@
         }, 10000);
     }
 
+    function shellHistoryUrl() {
+        const base = new URL('index.html', location.href);
+        base.search = currentIndex === 0 ? '?tab=memories' : currentIndex === 2 ? '?tab=social' : '';
+        base.hash = '';
+        return base.pathname + base.search;
+    }
+
     function closeFeaturePage(restoreHistory=true) {
         const hadHistory = featureHistoryActive;
         ++featureTransitionId;
@@ -240,7 +247,17 @@
         hideShellLoading();
         isScrollLocked = false;
         notifyVisiblePage();
-        if (restoreHistory && hadHistory) history.back();
+        if (restoreHistory && hadHistory) {
+            const closeTransitionId = featureTransitionId;
+            history.back();
+            // History traversal is asynchronous. If Safari/Chromium leaves the
+            // feature URL in place after the overlay is already closed, restore
+            // the shell URL without disturbing a nested feature that reopened.
+            setTimeout(() => {
+                if (closeTransitionId !== featureTransitionId || featureOverlay?.style.display === 'block') return;
+                if (featureUrl(location.href)) history.replaceState(null, '', shellHistoryUrl());
+            }, 600);
+        }
     }
     function notifyVisiblePage() {
         frames.forEach((frame, index) => {
