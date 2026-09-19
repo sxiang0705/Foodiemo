@@ -153,95 +153,17 @@
 
     <div id="friendRequestNotifications" class="notification-list" style="padding-top:0;"></div>
 
-    <div class="notification-list">
-
-        <div class="notif-item">
-            <div class="avatar-area">
-                <img src="IMG_7136.jpg" class="avatar" alt="User">
-            </div>
-            <div class="text-area">
-                <span class="username">karennne</span>
-                <span class="action-text">liked 3 posts.</span>
-                <span class="time">3h</span>
-                
-                <div class="grid-gallery">
-                    <img src="IMG_6677.jpg" class="grid-img">
-                    <img src="IMG_6654.jpg" class="grid-img">
-                    <img src="IMG_6481.jpg" class="grid-img">
-                </div>
-            </div>
-        </div>
-
-        <div class="notif-item">
-            <div class="avatar-area stacked-avatars">
-                <img src="IMG_6433.jpg" class="avatar" alt="User1">
-                <img src="IMG_6398.jpg" class="avatar" alt="User2">
-            </div>
-            <div class="text-area">
-                <span class="username">kiero_d, zackjohn</span> <span class="action-text">and</span> <span class="username">craig_love</span>
-                <span class="action-text">liked your photo.</span>
-                <span class="time">3h</span>
-            </div>
-            <div class="media-area">
-                <img src="IMG_6207.jpg" class="preview-img-right">
-            </div>
-        </div>
-
-        <div class="notif-item">
-            <div class="avatar-area">
-                <img src="IMG_3899.jpg" class="avatar" alt="User">
-            </div>
-            <div class="text-area">
-                <span class="username">mis_potter</span>
-                <span class="action-text">started following you.</span>
-                <span class="time">5h</span>
-            </div>
-            <div class="media-area"></div>
-        </div>
-
-        <div class="notif-item">
-            <div class="avatar-area">
-                <img src="IMG_3698.jpg" class="avatar" alt="User">
-            </div>
-            <div class="text-area">
-                <span class="username">craig_love</span>
-                <span class="action-text">liked 5 posts.</span>
-                <span class="time">5h</span>
-
-                <div class="grid-gallery">
-                    <img src="IMG_3604.jpg" class="grid-img">
-                    <img src="IMG_3535.jpg" class="grid-img">
-                    <img src="IMG_1940.jpg" class="grid-img">
-                    <img src="IMG_7136.jpg" class="grid-img">
-                    <img src="IMG_6677.jpg" class="grid-img">
-                </div>
-            </div>
-        </div>
-
-        <div class="notif-item">
-            <div class="avatar-area stacked-avatars">
-                <img src="IMG_6654.jpg" class="avatar" alt="User1">
-                <img src="IMG_6481.jpg" class="avatar" alt="User2">
-            </div>
-            <div class="text-area">
-                <span class="username">maxjacobson</span> <span class="action-text">and</span> <span class="username">zackjohn</span>
-                <span class="action-text">liked mis_potter's post.</span>
-                <span class="time">6h</span>
-            </div>
-            <div class="media-area">
-                <img src="IMG_6433.jpg" class="preview-img-right">
-            </div>
-        </div>
-
-    </div>
+    <div id="emptyNotifications" style="padding:48px 24px;text-align:center;color:#B0A093;font-size:14px;">目前沒有新的消息</div>
 
     <script src="env.js"></script><script src="config.js"></script>
     <script>
     const FRIENDS_API = DB_CONFIG.apiUrl.replace(/\/$/, '');
     const friendRequestNotifications = document.getElementById('friendRequestNotifications');
+    const emptyNotifications = document.getElementById('emptyNotifications');
     function renderFriendRequests(items) {
         if (!friendRequestNotifications) return;
-        if (!items.length) { friendRequestNotifications.innerHTML = ''; return; }
+        if (!items.length) { friendRequestNotifications.innerHTML = ''; if (emptyNotifications) emptyNotifications.style.display = 'block'; return; }
+        if (emptyNotifications) emptyNotifications.style.display = 'none';
         friendRequestNotifications.innerHTML = '<div style="padding:12px 24px 4px;font-size:16px;font-weight:700;color:#6D5D50;">好友請求</div>' + items.map(item => `
             <div class="notif-item" data-request-id="${escapeHtml(item.request_id)}">
                 <div class="avatar-area"><img src="${escapeHtml(normalizeAvatarUrl(item.avatar_url || window.DEFAULT_AVATAR_URL))}" class="avatar" alt="" onerror="this.src=window.DEFAULT_AVATAR_URL"></div>
@@ -257,7 +179,7 @@
         const row=button.closest('[data-request-id]'); if(!row)return; const id=row.dataset.requestId; const action=button.dataset.action; row.querySelectorAll('button').forEach(item=>item.disabled=true);
         try { const response=await fetch(FRIENDS_API + '/friends/requests/' + encodeURIComponent(id) + '/' + (action==='approve'?'approve':'reject'),{method:'POST'}); if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.detail||'好友請求處理失敗');} await loadFriendRequests(); } catch(error){alert(error.message);row.querySelectorAll('button').forEach(item=>item.disabled=false);}
     }
-    window.addEventListener('load',()=>window.FoodiemoSessionReady?.then(loadFriendRequests));
+    window.addEventListener('load',async()=>{try{await window.FoodiemoSessionReady;await loadFriendRequests();}finally{window.signalFoodiemoFeatureReady?.();}});
 
     function closeEmbeddedFeature() {
         try {

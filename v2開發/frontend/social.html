@@ -562,11 +562,17 @@
         };
 
         async function init() {
-            await window.FoodiemoSessionReady;
-            makeDiscoverPosts();
-            renderFeed(discoverFeed, discoverPosts, "discover");
-            setActiveTab(FoodiemoViewCache.read("social-tab") || "mine");
-            await loadMineFeed();
+            try {
+                await window.FoodiemoSessionReady;
+                makeDiscoverPosts();
+                renderFeed(discoverFeed, discoverPosts, "discover");
+                setActiveTab(FoodiemoViewCache.read("social-tab") || "mine");
+                await loadMineFeed();
+            } catch (error) {
+                console.error("社群頁初始化失敗", error);
+            } finally {
+                window.signalFoodiemoFrameReady?.(2);
+            }
         }
 
         init();

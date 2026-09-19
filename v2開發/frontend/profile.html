@@ -260,7 +260,7 @@
             }
 
             // 3. 載入頭像 (雲端優先，本地備份)
-            loadAvatar();
+            await loadAvatar();
 
             // 4. 顯示目前前端版本，方便手機實機驗收
             const buildInfo = document.getElementById('build-info');
@@ -270,44 +270,54 @@
             }
 
             // 5. 檢查 VIP 狀態
-            checkStatus();
+            await checkStatus();
+            window.signalFoodiemoFeatureReady?.();
         });
 
         /**
          * 載入頭像邏輯
          */
+        function renderAvatarAndWait(url) {
+            return new Promise(resolve => {
+                const image = document.createElement('img');
+                image.alt = 'Profile';
+                image.onload = resolve;
+                image.onerror = resolve;
+                image.src = normalizeAvatarUrl(url);
+                avatarDisplay.replaceChildren(image);
+                if (image.complete) resolve();
+            });
+        }
+
         async function loadAvatar() {
-            // 確保 db 已經初始化
-            if (!db) await initDB(); 
+            if (!db) await initDB();
 
             const remoteUrl = localStorage.getItem('myProfileAvatar') || localStorage.getItem('avatar_url');
             if (remoteUrl) {
-                avatarDisplay.innerHTML = `<img src="${normalizeAvatarUrl(remoteUrl)}" alt="Profile">`;
+                await renderAvatarAndWait(remoteUrl);
                 return;
             }
 
-            // 離線模式讀取
-            try {
-                const tx = db.transaction("user_profile", "readonly");
-                const store = tx.objectStore("user_profile");
-                const req = store.get("avatar"); 
-                
-                req.onsuccess = (e) => {
-                    const result = e.target.result;
-                    if (result) {
-                        const url = (result instanceof Blob || result instanceof File) 
-                                    ? URL.createObjectURL(result) 
-                                    : result;
-                        avatarDisplay.innerHTML = `<img src="${url}" alt="Profile">`;
-                    } else {
-                        avatarDisplay.innerHTML = `<img src="${DEFAULT_AVATAR_URL}" alt="Profile">`;
-                    }
-                };
-            } catch (e) {
-                console.warn("目前無法讀取本地頭像快取");
-            }
+            await new Promise(resolve => {
+                try {
+                    const tx = db.transaction('user_profile', 'readonly');
+                    const req = tx.objectStore('user_profile').get('avatar');
+                    req.onsuccess = async event => {
+                        const result = event.target.result;
+                        const url = result
+                            ? ((result instanceof Blob || result instanceof File) ? URL.createObjectURL(result) : result)
+                            : DEFAULT_AVATAR_URL;
+                        await renderAvatarAndWait(url);
+                        resolve();
+                    };
+                    req.onerror = () => {
+                        renderAvatarAndWait(DEFAULT_AVATAR_URL).finally(resolve);
+                    };
+                } catch (error) {
+                    renderAvatarAndWait(DEFAULT_AVATAR_URL).finally(resolve);
+                }
+            });
         }
-
         /**
          * 儲存名字 (失去焦點或按 Enter 時)
          */

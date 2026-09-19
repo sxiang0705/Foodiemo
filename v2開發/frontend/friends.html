@@ -35,7 +35,7 @@ async function runSearch(){const q=friendSearch.value.trim();if(q.length<2){sear
 async function respondRequest(requestId,action,button){button.disabled=true;button.textContent=action==='approve'?'處理中…':'忽略中…';try{const response=await fetch(API_BASE_URL+'/friends/requests/'+encodeURIComponent(requestId)+'/'+action,{method:'POST'});const data=await response.json();if(!response.ok)throw new Error(data.detail||'好友請求處理失敗');await loadFriends();}catch(error){alert(error.message);button.disabled=false;button.textContent=action==='approve'?'批准':'忽略';}}
 async function sendRequest(userId,button){button.disabled=true;button.textContent='送出中…';try{const response=await fetch(API_BASE_URL+'/friends/requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:Number(userId)})});const data=await response.json();if(!response.ok)throw new Error(data.detail||'好友請求送出失敗');button.textContent='已送出';await loadFriends();}catch(error){alert(error.message);button.disabled=false;button.textContent='加好友';}}
 searchBtn.addEventListener('click',runSearch);friendSearch.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();runSearch();}});
-window.addEventListener('load',async()=>{try{await window.FoodiemoSessionReady;await loadFriends();}catch(error){friendList.innerHTML='<div class="empty error">'+escapeHtml(error.message||'好友資料讀取失敗')+'</div>';}});
+window.addEventListener('load',async()=>{try{await window.FoodiemoSessionReady;await loadFriends();}catch(error){friendList.innerHTML='<div class="empty error">'+escapeHtml(error.message||'好友資料讀取失敗')+'</div>';}finally{window.signalFoodiemoFeatureReady?.();}});
 </script>
 </body>
 </html>

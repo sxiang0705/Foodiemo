@@ -237,6 +237,8 @@
             // 多個 getUserMedia，會重複跳出權限視窗。共用同一個進行中的請求。
             if(cameraRequest)return cameraRequest;
             const request=(async()=>{
+                // 相機權限提示由瀏覽器控制，不能阻塞整個主畫面；先讓頁面與頭像完成顯示。
+                markHeroReady();
                 try {
                     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
                     cameraStream=stream;

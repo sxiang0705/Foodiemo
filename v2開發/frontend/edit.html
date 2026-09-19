@@ -403,6 +403,7 @@
 
         renderGrid();
         window.onload = async () => {
+            try {
             const isPremium = localStorage.getItem('isPremiumUser') === 'true';
             if (!isPremium) {
                 const tagFriendBtn = document.getElementById('tagFriendBtn');
@@ -435,9 +436,10 @@
             } else {
                 initDB();
             }
+            } finally {
+                window.signalFoodiemoFeatureReady?.();
+            }
         };
     </script>
 </body>
 </html>
-
-

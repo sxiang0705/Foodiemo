@@ -471,7 +471,7 @@
             isPulling = false;
             const currentHeight = parseInt(loadingContainer.style.height || 0, 10);
             if (currentHeight > 40) {
-                fetchRestaurants();
+                fetchRestaurants().finally(() => window.signalFoodiemoFeatureReady?.());
             } else {
                 showLoading(false);
             }
@@ -521,7 +521,7 @@
             }
         }
 
-        fetchRestaurants();
+        fetchRestaurants().finally(() => window.signalFoodiemoFeatureReady?.());
     </script>
 </body>
 </html>

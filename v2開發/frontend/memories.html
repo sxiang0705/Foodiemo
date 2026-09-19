@@ -578,13 +578,18 @@
         });
 
         // --- 初始化執行 ---
-        initDB().then(async () => { 
-            await window.FoodiemoSessionReady;
-            resetToCurrentMonth();
-            await loadDataFromDB(); 
-        });
+        (async () => {
+            try {
+                await initDB();
+                await window.FoodiemoSessionReady;
+                resetToCurrentMonth();
+                await loadDataFromDB();
+            } catch (error) {
+                console.error('回憶頁初始化失敗', error);
+            } finally {
+                window.signalFoodiemoFrameReady?.(0);
+            }
+        })();
     </script>
 </body>
 </html>
-
-

@@ -184,6 +184,8 @@
         const googleClientId = window.FOOD_END_GOOGLE_CLIENT_ID || '';
         const dbName = DB_CONFIG.name;
         const dbVersion = DB_CONFIG.version;
+        const forceFreshLogin = new URLSearchParams(window.location.search).get("status") === "loggedout";
+        const loginCacheReset = forceFreshLogin ? clearLocalAppData().catch(() => null) : Promise.resolve();
         let db;
 
         if (localStorage.getItem('myProfileEmail') && !window.location.search.includes('status=loggedout')) {
@@ -199,6 +201,7 @@
 
         async function finalizeLogin(data) {
             if (db) db.close();
+            await loginCacheReset;
             await clearLocalAppData();
             localStorage.setItem('myProfileEmail', data.email);
             localStorage.setItem('myProfileName', data.name);

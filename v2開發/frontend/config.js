@@ -4,7 +4,7 @@ function resolveApiBaseUrl() {
     return window.location.origin + "/api";
 }
 
-const FOODIEMO_BUILD = Object.freeze({version: "v2.1.1", updatedAt: "2026-09-19T13:27:00+08:00"});
+const FOODIEMO_BUILD = Object.freeze({version: "v2.1.2", updatedAt: "2026-09-19T21:39:00+08:00"});
 window.FOODIEMO_BUILD = FOODIEMO_BUILD;
 
 const DB_CONFIG = {
@@ -130,6 +130,16 @@ window.setStoredAvatarUrl = setStoredAvatarUrl;
 window.clearStoredAvatarUrl = clearStoredAvatarUrl;
 window.applyAvatarImage = applyAvatarImage;
 window.applyAvatarBackground = applyAvatarBackground;
+
+window.signalFoodiemoFeatureReady = function() {
+    if (window.__foodiemoFeatureReadySent || window.top === window) return;
+    window.__foodiemoFeatureReadySent = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => window.top.postMessage({type:'featureReady'}, '*')));
+};
+window.signalFoodiemoFrameReady = function(pageIndex) {
+    if (window.top === window) return;
+    window.top.postMessage({type:'frameReady', pageIndex:Number(pageIndex)}, '*');
+};
 
 async function clearLocalAppData() {
     FoodiemoViewCache.clear();

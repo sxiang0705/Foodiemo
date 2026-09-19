@@ -64,10 +64,10 @@
     </style>
 </head>
 <body>
-    <div id="shellLoading" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;background:#F3ECE5;color:#6F5B50;font:600 16px system-ui,sans-serif;transition:opacity .16s ease;">
-        載入中…
+    <div id="shellLoading" role="status" aria-live="polite" style="display:flex;position:fixed;inset:0;z-index:11000;align-items:center;justify-content:center;gap:12px;background:#F3ECE5;color:#6F5B50;font:600 16px system-ui,sans-serif;transition:opacity .16s ease;">
+        <span class="shell-spinner" aria-hidden="true"></span><span id="shellLoadingText">載入中…</span>
     </div>    <div class="drag-overlay" id="dragOverlay"></div>
-    <div class="wrapper" id="swipeWrapper">
+    <div class="wrapper" id="swipeWrapper" style="visibility:hidden;">
         <div class="page"><iframe src="memories.html"></iframe></div>
         <div class="page"><iframe src="home.html"></iframe></div>
         <div class="page"><iframe src="social.html"></iframe></div>
@@ -86,6 +86,10 @@
         style.textContent = `
             #featureOverlay.comment-feature { background:rgba(32,24,20,.34)!important; }
             #featureOverlay.comment-feature #featureFrame { background:transparent!important; }
+            #shellLoading .shell-spinner { width:24px; height:24px; border:3px solid rgba(156,124,102,.24); border-top-color:#9C7C66; border-radius:50%; animation:foodiemoShellSpin .72s linear infinite; flex:none; }
+            #shellLoading.is-feature-loading { z-index:11001; }
+            #featureFrame.feature-loading { visibility:hidden; }
+            @keyframes foodiemoShellSpin { to { transform:rotate(360deg); } }
         `;
         document.head.appendChild(style);
     })();
@@ -101,28 +105,64 @@
     const featureOverlay = document.getElementById('featureOverlay');
     const featureFrame = document.getElementById('featureFrame');
     const shellLoading = document.getElementById('shellLoading');
-    let shellWaiting = false;
+    const shellLoadingText = document.getElementById('shellLoadingText');
+    let shellAuthenticated = false;
+    let shellReady = false;
     let shellFallbackTimer = null;
+    const readyFrames = new Set();
+    const requiredFrameIndexes = [0, 1, 2];
+    let featureLoadedUrl = '';
+    let featureReadyUrl = '';
+    let featureReadyTimer = null;
 
-    function revealShell() {
-        if (!shellWaiting || !shellLoading) return;
-        shellWaiting = false;
-        if (shellFallbackTimer) clearTimeout(shellFallbackTimer);
-        try { sessionStorage.removeItem('foodiemo-await-shell'); } catch(e) {}
-        shellLoading.style.opacity = '0';
-        setTimeout(() => { if (!shellWaiting) shellLoading.style.display = 'none'; }, 180);
+    function setLoadingText(text) {
+        if (shellLoadingText) shellLoadingText.textContent = text;
     }
 
-    function armShellGate() {
-        let requested = false;
-        try { requested = sessionStorage.getItem('foodiemo-await-shell') === '1'; } catch(e) {}
-        if (!requested || !shellLoading) return;
-        shellWaiting = true;
+    function showShellLoading(text='載入中…', feature=false) {
+        if (!shellLoading) return;
+        setLoadingText(text);
+        shellLoading.classList.toggle('is-feature-loading', feature);
         shellLoading.style.display = 'flex';
         shellLoading.style.opacity = '1';
-        shellFallbackTimer = setTimeout(revealShell, 2200);
     }
 
+    function hideShellLoading() {
+        if (!shellLoading) return;
+        shellLoading.style.opacity = '0';
+        shellLoading.classList.remove('is-feature-loading');
+        setTimeout(() => {
+            if (shellLoading.style.opacity === '0') shellLoading.style.display = 'none';
+        }, 180);
+    }
+
+    function revealShell(force=false) {
+        if (!shellLoading || (shellReady && !force)) return;
+        if (!force && (!shellAuthenticated || !requiredFrameIndexes.every(index => readyFrames.has(index)))) return;
+        shellReady = true;
+        if (shellFallbackTimer) clearTimeout(shellFallbackTimer);
+        try { sessionStorage.removeItem('foodiemo-await-shell'); } catch(e) {}
+        if (swipeWrapper) swipeWrapper.style.visibility = 'visible';
+        hideShellLoading();
+    }
+
+    function registerFrameReady(index) {
+        readyFrames.add(Number(index));
+        revealShell();
+    }
+
+    function maybeRevealFeature() {
+        if (!featureOverlay || !featureFrame || !featureLoadedUrl || featureReadyUrl !== featureLoadedUrl) return;
+        if (featureReadyTimer) clearTimeout(featureReadyTimer);
+        featureFrame.classList.remove('feature-loading');
+        featureOverlay.style.visibility = 'visible';
+        hideShellLoading();
+    }
+
+    function markFeatureReady() {
+        featureReadyUrl = featureFrame?.src || '';
+        maybeRevealFeature();
+    }
     let isScrollLocked = false; 
     let startX = 0;
     let currentX = 0;
@@ -146,20 +186,44 @@
             history.pushState({ feature: url }, '', url);
             featureHistoryActive = true;
         }
-        featureFrame.src = url;
         const isCommentFeature = new URL(url).pathname.endsWith('/comments.html');
+        const cachedFeature = featureFrame.src === url && featureReadyUrl === url;
         featureOverlay.classList.toggle('comment-feature', isCommentFeature);
         featureFrame.style.background = isCommentFeature ? 'transparent' : '#F3ECE5';
         featureOverlay.style.display = 'block';
-        featureOverlay.style.visibility = isCommentFeature ? 'hidden' : 'visible';
+        featureOverlay.style.visibility = cachedFeature ? 'visible' : 'hidden';
         featureOverlay.setAttribute('aria-hidden', 'false');
+        featureFrame.classList.toggle('feature-loading', !cachedFeature);
         isScrollLocked = true;
+        if (cachedFeature) {
+            featureLoadedUrl = url;
+            markFeatureReady();
+            return;
+        }
+        featureLoadedUrl = '';
+        featureReadyUrl = '';
+        showShellLoading('頁面載入中…', true);
+        featureFrame.onload = () => {
+            featureLoadedUrl = featureFrame.src;
+            maybeRevealFeature();
+        };
+        featureFrame.src = url;
+        if (featureReadyTimer) clearTimeout(featureReadyTimer);
+        featureReadyTimer = setTimeout(() => {
+            // API 失敗時仍讓錯誤畫面可見，不把使用者鎖在遮罩裡。
+            if (featureFrame.src === url) {
+                featureFrame.classList.remove('feature-loading');
+                featureOverlay.style.visibility = 'visible';
+                hideShellLoading();
+            }
+        }, 10000);
     }
 
     function closeFeaturePage(restoreHistory=true) {
         const hadHistory = featureHistoryActive;
         featureHistoryActive = false;
-        if (featureFrame) featureFrame.src = 'about:blank';
+        if (featureReadyTimer) clearTimeout(featureReadyTimer);
+        if (featureFrame) featureFrame.classList.add('feature-loading');
         if (featureOverlay) {
             featureOverlay.classList.remove('comment-feature');
             featureOverlay.style.display = 'none';
@@ -167,11 +231,11 @@
         }
         if (featureFrame) featureFrame.style.background = '#F3ECE5';
         if (featureOverlay) featureOverlay.style.visibility = 'visible';
+        hideShellLoading();
         isScrollLocked = false;
         notifyVisiblePage();
         if (restoreHistory && hadHistory) history.back();
     }
-
     function notifyVisiblePage() {
         frames.forEach((frame, index) => {
             try {
@@ -267,8 +331,8 @@
     });
 
     // --- 4. 初始化邏輯 ---
-    function bootApp() {
-        armShellGate();
+    async function bootApp() {
+        showShellLoading('驗證登入狀態…');
         const params = new URLSearchParams(window.location.search);
         const tab = params.get('tab');
         
@@ -276,10 +340,28 @@
         else if (tab === 'social') currentIndex = 2;
         else currentIndex = 1;
 
-        // 確保在渲染的第一時間就定位到 Home
+        // 先定位但保持遮罩，避免使用者看到尚未完成的頁面。
         goToPage(currentIndex, false);
+        try {
+            const user = await window.FoodiemoSessionReady;
+            if (!user) {
+                FoodiemoViewCache.clear();
+                window.top.location.replace('login.html');
+                return;
+            }
+            shellAuthenticated = true;
+            revealShell();
+            shellFallbackTimer = setTimeout(() => {
+                if (!shellReady) {
+                    setLoadingText('資料載入時間較久，剩餘內容會在背景更新');
+                    revealShell(true);
+                }
+            }, 15000);
+        } catch (_) {
+            FoodiemoViewCache.clear();
+            window.top.location.replace('login.html');
+        }
     }
-
     // 監聽訊息
     window.addEventListener('message', (e) => {
         if (e.data === 'lockSwiping') isScrollLocked = true;
@@ -294,12 +376,11 @@
             return;
         }
         if (e.data?.type === 'featureReady' && e.source === featureFrame?.contentWindow) {
-            featureOverlay.style.visibility = 'visible';
+            markFeatureReady();
             return;
         }
-        if (e.data?.type === 'frameReady' && e.data.pageIndex === currentIndex) revealShell();
+        if (e.data?.type === 'frameReady') registerFrameReady(e.data.pageIndex);
     });
-
     window.addEventListener('popstate', event => {
         if (event.state?.feature) showFeaturePage(event.state.feature, false);
         else if (featureOverlay?.style.display === 'block') closeFeaturePage(false);
@@ -349,4 +430,3 @@
   
 </body>
 </html>
-
