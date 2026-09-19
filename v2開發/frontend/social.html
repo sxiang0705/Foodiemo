@@ -239,6 +239,10 @@
         let menuTimer = null;
         const likeBusy = new Set();
 
+        const mentionUiStyle = document.createElement("style");
+        mentionUiStyle.textContent = '.mention-toggle{position:absolute;left:10px;bottom:10px;width:34px;height:34px;border:1px solid rgba(255,255,255,.72);border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(58,45,37,.58);color:#fff;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);cursor:pointer;z-index:7;transition:transform .18s ease,background .18s ease,box-shadow .18s ease}.mention-toggle:active{transform:scale(.9)}.mention-toggle.show{background:#9C7C66;box-shadow:0 4px 12px rgba(62,45,35,.28)}.mention-toggle svg{width:18px;height:18px}.mention-popover{position:absolute;left:10px;bottom:52px;min-width:150px;max-width:calc(100% - 20px);max-height:46%;overflow:auto;padding:10px 12px;border:1px solid rgba(255,255,255,.55);border-radius:16px;background:rgba(50,39,32,.88);color:#fff;box-shadow:0 10px 24px rgba(42,31,24,.28);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;transform:translateY(8px) scale(.9);transform-origin:bottom left;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:6}.mention-popover.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}.mention-title{margin-bottom:6px;color:#eadbd0;font-size:11px;font-weight:700}.mention-item{padding:5px 0;color:#fff;font-size:13px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mention-item+.mention-item{border-top:1px solid rgba(255,255,255,.14)}';
+        document.head.appendChild(mentionUiStyle);
+
         const icons = {
             more: "...",
             heartOutline: '<svg viewBox="0 0 24 24" fill="none" stroke="#3f332c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>',
@@ -328,7 +332,10 @@
                 imageUrls: Array.isArray(post.imageUrls) ? post.imageUrls : [post.url].filter(Boolean),
                 likes: typeof post.likes === "number" ? post.likes : 0,
                 commentCount: typeof post.commentCount === "number" ? post.commentCount : (Array.isArray(post.comments) ? post.comments.length : 0),
-                isLiked: !!post.isLiked
+                isLiked: !!post.isLiked,
+                mentions: Array.isArray(post.mentions)
+                    ? post.mentions.filter(item => item && item.id != null).map(item => ({id:String(item.id),name:String(item.name || "會員")}))
+                    : []
             }));
         }
 
@@ -355,6 +362,15 @@
         function renderPost(post, feedType) {
             const images = Array.isArray(post.imageUrls) ? post.imageUrls : [];
             const key = feedType + "-" + post.id;
+            const mentions = Array.isArray(post.mentions) ? post.mentions : [];
+            const mentionHtml = mentions.length ? `
+                <button type="button" class="mention-toggle" id="mention-toggle-${key}" aria-label="查看標記的朋友" aria-expanded="false" onclick="window.toggleMentions(event, '${key}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"></circle><path d="M2 21v-2a7 7 0 0 1 14 0"></path><path d="M19 8v6M16 11h6"></path></svg>
+                </button>
+                <div class="mention-popover" id="mention-popover-${key}" role="dialog" aria-label="標記的朋友" aria-hidden="true" onclick="event.stopPropagation()">
+                    <div class="mention-title">標記的朋友</div>
+                    ${mentions.map(item => `<div class="mention-item">${escapeHtml(item.name)}</div>`).join("")}
+                </div>` : "";
             const imageHtml = images.map((src) => `
                 <div class="slide">
                     <img src="${escapeHtml(src)}" alt="${escapeHtml(post.username)}" onerror="this.src='IMG_1940.jpg'">
@@ -380,6 +396,7 @@
                         ${imageHtml}
                     </div>
                     ${images.length > 1 ? `<div class="image-counter" id="counter-${key}">1/${images.length}</div>` : ""}
+                    ${mentionHtml}
                 </div>
                 <div class="post-body">
                     <div class="actions">
@@ -426,6 +443,35 @@
             }
 
         }
+
+        function closeMentionPopovers(exceptKey = "") {
+            document.querySelectorAll(".mention-popover.show").forEach(popover => {
+                if (popover.id === "mention-popover-" + exceptKey) return;
+                popover.classList.remove("show");
+                popover.setAttribute("aria-hidden", "true");
+                const key = popover.id.replace("mention-popover-", "");
+                document.getElementById("mention-toggle-" + key)?.classList.remove("show");
+                document.getElementById("mention-toggle-" + key)?.setAttribute("aria-expanded", "false");
+            });
+        }
+
+        window.toggleMentions = function(event, key) {
+            event.stopPropagation();
+            const popover = document.getElementById("mention-popover-" + key);
+            const button = document.getElementById("mention-toggle-" + key);
+            if (!popover || !button) return;
+            const opening = !popover.classList.contains("show");
+            closeMentionPopovers(key);
+            popover.classList.toggle("show", opening);
+            popover.setAttribute("aria-hidden", opening ? "false" : "true");
+            button.classList.toggle("show", opening);
+            button.setAttribute("aria-expanded", opening ? "true" : "false");
+        };
+
+        document.addEventListener("click", () => closeMentionPopovers());
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape") closeMentionPopovers();
+        });
 
         window.updateCounter = function(key) {
             const slider = document.getElementById("slider-" + key);

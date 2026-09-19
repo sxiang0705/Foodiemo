@@ -43,6 +43,9 @@ const otp=purpose=>JSON.parse(fs.readFileSync(process.env.V2_BROWSER_MAILBOX,'ut
  await page.click('#payBtn');await page.waitForFunction(()=>localStorage.getItem('isPremiumUser')==='true');
  assert.equal((await (await context.request.get(BASE+'/api/me')).json()).is_premium,true);pass('Demo 付款不收卡號並保存示意會員');
  await page.goto(BASE+'/social.html');await page.waitForSelector('#mineFeed article.post-card');assert.equal(await page.locator('.username b').count(),0);
+ const mentionToggle=page.locator('#mineFeed .mention-toggle').first();await mentionToggle.waitFor();assert.equal(await mentionToggle.isVisible(),true);
+ await mentionToggle.click();const mentionPopover=page.locator('#mineFeed .mention-popover').first();assert.equal(await mentionPopover.getAttribute('aria-hidden'),'false');assert.match(await mentionPopover.innerText(),/Browser Friend/);
+ await mentionToggle.click();assert.equal(await mentionPopover.getAttribute('aria-hidden'),'true');await mentionToggle.click();await page.evaluate(()=>document.body.dispatchEvent(new MouseEvent('click',{bubbles:true})));assert.equal(await mentionPopover.getAttribute('aria-hidden'),'true');pass('社群貼文圖片顯示標記好友按鈕與動畫彈窗');
  await page.locator('#mineFeed .more-btn').first().click();await page.locator('.menu-item.delete').first().click();
  await page.waitForFunction(()=>document.querySelectorAll('#mineFeed .post-card').length===0);
  assert.equal((await (await context.request.get(BASE+'/api/get_memories')).json()).length,0);pass('社群刪除整則多圖紀錄');
