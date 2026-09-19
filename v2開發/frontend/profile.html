@@ -264,7 +264,10 @@
 
             // 4. 顯示目前前端版本，方便手機實機驗收
             const buildInfo = document.getElementById('build-info');
-            if (buildInfo && window.FOODIEMO_BUILD) buildInfo.textContent = `版本 ${window.FOODIEMO_BUILD.version} · 最後更新 ${window.FOODIEMO_BUILD.updatedAt}`;
+            if (buildInfo && window.FOODIEMO_BUILD) {
+                const updatedAt = String(window.FOODIEMO_BUILD.updatedAt || "").replace("T", " ").slice(0, 16);
+                buildInfo.textContent = `版本 ${window.FOODIEMO_BUILD.version} · 最後更新 ${updatedAt}`;
+            }
 
             // 5. 檢查 VIP 狀態
             checkStatus();
@@ -463,5 +466,3 @@
     </script>
 </body>
 </html>
-
-

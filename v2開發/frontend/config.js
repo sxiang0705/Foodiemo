@@ -4,7 +4,7 @@ function resolveApiBaseUrl() {
     return window.location.origin + "/api";
 }
 
-const FOODIEMO_BUILD = Object.freeze({version: "v2.1.0", updatedAt: "2026-09-19"});
+const FOODIEMO_BUILD = Object.freeze({version: "v2.1.1", updatedAt: "2026-09-19T13:27:00+08:00"});
 window.FOODIEMO_BUILD = FOODIEMO_BUILD;
 
 const DB_CONFIG = {
