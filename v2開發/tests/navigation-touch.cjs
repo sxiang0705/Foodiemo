@@ -36,6 +36,15 @@ const gesture=await p.evaluate(()=>{
 });
 for(const [actual,expected] of gesture)assert.ok(Math.abs(actual-expected)<0.1,`moving iframe ${actual} != ${expected}`);
 console.log('PASS slow left/right moving iframe coordinates remain stable');
+const mouseSwipe=await p.evaluate(()=>{
+ const frame=document.querySelector('iframe[src="home.html"]'),win=frame.contentWindow,target=win.document.body;
+ const rect=frame.getBoundingClientRect(),start=200,drag=Math.ceil(innerWidth/3);
+ const emit=(type,x)=>target.dispatchEvent(new MouseEvent(type,{clientX:x-rect.left,clientY:200-rect.top,button:0,bubbles:true}));
+ goToPage(1,false);emit('mousedown',start);emit('mousemove',start-drag);emit('mouseup',start-drag);
+ return swipeWrapper.style.transform;
+});
+assert.equal(mouseSwipe,'translateX(-'+(width*2)+'px)');
+console.log('PASS '+width+'px desktop mouse drag across iframe changes page');
 const cache=await p.evaluate(async()=>{
  await FoodiemoSessionReady;
  FoodiemoViewCache.write('records',[{id:'cached'}]);

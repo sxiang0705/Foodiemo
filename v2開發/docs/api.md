@@ -53,7 +53,7 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/preferences | PUT version=1、answers 六題 key/value；選項需完全符合原六題 |
 | /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked`、`commentCount` |
 | /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；可附 `initial_comment`（最多 2000 字）建立第一則留言；沒有餐廳選擇時可附 `photo_location_text`（最多 200 字）保存照片 EXIF GPS 的顯示標籤；更新須 post_id |
-| /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；ID 以字串傳遞 |
+| /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；`/api/members` 不帶 q 時先回傳目前已接受的好友，輸入 q 時搜尋其他已驗證會員；ID 以字串傳遞 |
 | /api/friends、/api/friends/search?q= | GET 好友、好友請求與名稱／Email 搜尋結果 |
 | /api/friends/requests | POST user_id；送出好友請求，對方批准後建立關係 |
 | /api/friends/requests/{id}/approve、/reject | POST；批准或忽略收到的好友請求 |

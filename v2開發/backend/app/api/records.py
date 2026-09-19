@@ -159,11 +159,19 @@ def locations(request:Request,q:str=Query("",max_length=100),c=Depends(connectio
     rows=c.execute(text('SELECT restaurant_id,title,address FROM public.restaurant_rows WHERE title ILIKE :q ESCAPE \'/\' OR address ILIKE :q ESCAPE \'/\' ORDER BY title,restaurant_id LIMIT 30'),{"q":"%"+query+"%"}).mappings()
     return {"items":[dict(id=str(r["restaurant_id"]),name=r["title"],address=r["address"]) for r in rows]}
 @router.get("/members")
-def members(request:Request,q:str=Query("",min_length=2,max_length=80),c=Depends(connection)):
+def members(request:Request,q:str=Query("",max_length=80),c=Depends(connection)):
     user=current_user(c,request)
-    if len(q.strip())<2:raise HTTPException(422,"請輸入至少兩個字")
-    query=q.strip().replace("/","//").replace("%","/%").replace("_","/_")
-    rows=c.execute(text("SELECT user_id,user_name FROM public.users WHERE email_verified AND user_id<>:u AND user_name ILIKE :q ESCAPE '/' ORDER BY user_name,user_id LIMIT 20"),{"q":"%"+query+"%","u":user["user_id"]}).mappings()
+    q=q.strip()
+    if not q:
+        # The tag-friend picker opens with the user's accepted friends ready.
+        rows=c.execute(text("""SELECT DISTINCT u.user_id,u.user_name
+            FROM public.friend_requests fr
+            JOIN public.users u ON u.user_id=CASE WHEN fr.requester_id=:u THEN fr.addressee_id ELSE fr.requester_id END
+            WHERE fr.status='accepted' AND (fr.requester_id=:u OR fr.addressee_id=:u)
+            ORDER BY u.user_name,u.user_id LIMIT 30"""),{"u":user["user_id"]}).mappings()
+    else:
+        query=q.replace("/","//").replace("%","/%").replace("_","/_")
+        rows=c.execute(text("SELECT user_id,user_name FROM public.users WHERE email_verified AND user_id<>:u AND user_name ILIKE :q ESCAPE '/' ORDER BY user_name,user_id LIMIT 20"),{"q":"%"+query+"%","u":user["user_id"]}).mappings()
     return {"items":[dict(id=str(r["user_id"]),name=r["user_name"]) for r in rows]}
 class Comment(BaseModel):
     photo_id:str
