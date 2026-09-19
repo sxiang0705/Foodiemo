@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 from app.api.accounts import router as accounts_router
 from app.api.records import router as records_router
 from app.api.friends import router as friends_router
+from app.api.chat import router as chat_router
 from app.core.mail import SMTPMailer
 from app.core.safety import assert_test_path
 from contextlib import asynccontextmanager
@@ -100,6 +101,7 @@ def create_app(settings=None, engine=None, provider=None, write_engine=None, mai
     app.include_router(accounts_router)
     app.include_router(records_router)
     app.include_router(friends_router)
+    app.include_router(chat_router)
 
     @app.api_route("/api/{remaining:path}",methods=["GET","POST","PUT","PATCH","DELETE"])
     def pending(request: Request, remaining: str):

@@ -40,7 +40,7 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 
 ## 2026-09-10 帳號／照片 API
 
-所有受保護 API 以 HttpOnly Cookie `foodiemo_session` 識別使用者。前端 email 不決定身分；不符時 403。未登入 401、缺資料 404、格式錯誤 422、頻率限制 429、寄信／資料庫不可用 503。未知 API 仍為 501。
+所有受保護 API 以 HttpOnly Cookie `foodiemo_session` 識別使用者。前端 email 不決定身分；不符時 403。未登入 401、缺資料 404、格式錯誤 422、頻率限制 429、寄信／資料庫不可用 503。未知 API 仍為 501。聊天室訊息只保存於好友雙方的私有對話，不公開給其他使用者。
 
 | 路徑 | 方法與資料 |
 | --- | --- |
@@ -57,6 +57,7 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/friends、/api/friends/search?q= | GET 好友、好友請求與名稱／Email 搜尋結果 |
 | /api/friends/requests | POST user_id；送出好友請求，對方批准後建立關係 |
 | /api/friends/requests/{id}/approve、/reject | POST；批准或忽略收到的好友請求 |
+| /api/chats/{friend_id}/messages | GET；讀取已接受好友的聊天訊息（可用 after_id 增量輪詢）；POST JSON text；只有已接受好友可收發，訊息最多 2000 字 |
 | /api/posts/{id} | DELETE 整篇紀錄及照片引用 |
 | /api/posts/{id}/like | POST／DELETE；目前登入者對自己的紀錄新增／取消愛心，重複新增不會重複計數 |
 | /api/delete_single_photo | DELETE post_id/photo_url；只刪自己指定的一張 |

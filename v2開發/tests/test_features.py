@@ -161,6 +161,21 @@ def test_friend_search_request_approve_and_list(setup):
     assert c.get('/api/friends').json()['friends'][0]['id']==friend['id']
 
 
+def test_friend_chat_requires_accepted_friend_and_persists_messages(setup):
+    c,mail,db,app=setup
+    friend=register(c,mail,'chat-friend@example.test','聊天好友')
+    c.cookies.clear();me=register(c,mail,'chat-member@example.test','聊天會員')
+    request_id=c.post('/api/friends/requests',json={'user_id':int(friend['id'])}).json()['request_id']
+    c.cookies.clear();assert c.post('/api/login',json={'email':friend['email'],'password':'Correct-password-1'}).status_code==200
+    assert c.get('/api/chats/'+me['id']+'/messages').status_code==403
+    assert c.post('/api/friends/requests/'+request_id+'/approve').status_code==200
+    assert c.post('/api/chats/'+me['id']+'/messages',json={'text':'你好，今天吃什麼？'}).status_code==200
+    c.cookies.clear();assert c.post('/api/login',json={'email':me['email'],'password':'Correct-password-1'}).status_code==200
+    result=c.get('/api/chats/'+friend['id']+'/messages').json()
+    assert result['friend']['id']==friend['id'] and result['messages'][0]['text']=='你好，今天吃什麼？'
+    sent=c.post('/api/chats/'+friend['id']+'/messages',json={'text':'我想吃拉麵'}).json()['message']
+    assert sent['sender_id']==me['id']
+    assert c.post('/api/chats/'+friend['id']+'/messages',json={'text':'   '}).status_code==422
 def test_otp_attempt_limit_expiry_and_resend(setup):
     c,mail,db,app=setup
     email='otp-limit@example.test'

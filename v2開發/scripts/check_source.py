@@ -29,6 +29,9 @@ def main():
             if not name.endswith('.html'):continue
             before=(SOURCE/name).read_text(encoding="utf-8-sig")
             after=(ROOT/"frontend"/name).read_text(encoding="utf-8-sig")
+            if name=="profile.html":
+                # Version metadata is an intentional non-interactive addition.
+                after=re.sub(r"\s*\.build-info\s*\{.*?\}", "", after, flags=re.S)
             assert re.findall(r"<style>(.*?)</style>",before,re.S)==re.findall(r"<style>(.*?)</style>",after,re.S), "Original CSS changed: "+name
     values=dotenv_values(ROOT/".env",encoding="utf-8-sig")
     values.update({"TEST_"+k:v for k,v in dotenv_values(ROOT/".env.test",encoding="utf-8-sig").items()})

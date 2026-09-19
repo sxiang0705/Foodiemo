@@ -96,6 +96,7 @@
         .edit-icon { color: #998A7D; opacity: 0.5; pointer-events: none; }
 
         .email { font-size: 13px; color: #998A7D; }
+        .build-info { margin-top: 10px; font-size: 11px; color: #ad9b8f; letter-spacing: .2px; }
 
         /* --- 選單列表 --- */
         .menu-list { 
@@ -159,6 +160,7 @@
         </div>
         
         <div class="email" id="email-display">Loading...</div>
+        <div class="build-info" id="build-info" aria-label="版本資訊"></div>
     </div>
 
     <div class="menu-list">
@@ -260,7 +262,11 @@
             // 3. 載入頭像 (雲端優先，本地備份)
             loadAvatar();
 
-            // 4. 檢查 VIP 狀態
+            // 4. 顯示目前前端版本，方便手機實機驗收
+            const buildInfo = document.getElementById('build-info');
+            if (buildInfo && window.FOODIEMO_BUILD) buildInfo.textContent = `版本 ${window.FOODIEMO_BUILD.version} · 最後更新 ${window.FOODIEMO_BUILD.updatedAt}`;
+
+            // 5. 檢查 VIP 狀態
             checkStatus();
         });
 

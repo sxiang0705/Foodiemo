@@ -4,6 +4,9 @@ function resolveApiBaseUrl() {
     return window.location.origin + "/api";
 }
 
+const FOODIEMO_BUILD = Object.freeze({version: "v2.1.0", updatedAt: "2026-09-19"});
+window.FOODIEMO_BUILD = FOODIEMO_BUILD;
+
 const DB_CONFIG = {
     name: "FoodiemoV2DB",
     version: 20, // 統一版本號
