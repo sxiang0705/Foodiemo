@@ -235,6 +235,27 @@
         const mineFeed = document.getElementById("mineFeed");
         const discoverFeed = document.getElementById("discoverFeed");
 
+        const socialPostStyle = document.createElement("style");
+        socialPostStyle.textContent = '.mine-filter-bar{display:flex;gap:8px;overflow-x:auto;padding:0 16px 14px;scrollbar-width:none}.mine-filter-bar::-webkit-scrollbar{display:none}.mine-filter-btn{flex:0 0 auto;border:1px solid rgba(156,124,102,.22);border-radius:999px;padding:8px 14px;background:rgba(255,255,255,.34);color:#9c887b;font-size:12px;font-weight:600;cursor:pointer;transition:background .18s ease,color .18s ease,box-shadow .18s ease}.mine-filter-btn.active{border-color:#9c7c66;background:#9c7c66;color:#fff;box-shadow:0 4px 10px rgba(120,88,68,.16)}.post-context{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:2px 7px;border-radius:999px;font-size:9px;line-height:1.3;font-weight:600;letter-spacing:.02em}.post-context.mine{background:rgba(114,103,96,.08);color:#9c928c}.post-context.tagged{background:rgba(156,124,102,.13);color:#9c7c66}.post-context.tagged .at-icon{font-size:11px;font-weight:800}.tagged-post{border-left:3px solid #b18b72;padding-left:10px}.tagged-post+.post-card::before{left:24px!important}';
+        document.head.appendChild(socialPostStyle);
+
+        const mineFilterBar = document.createElement("div");
+        mineFilterBar.className = "mine-filter-bar";
+        mineFilterBar.setAttribute("aria-label", "貼文篩選");
+        mineFilterBar.innerHTML = [
+            ["all", "全部"],
+            ["mine", "我的貼文"],
+            ["tagged", "標記我的"]
+        ].map(([value, label]) => '<button type="button" class="mine-filter-btn" data-filter="' + value + '">' + label + '</button>').join("");
+        minePanel.insertBefore(mineFilterBar, mineFeed);
+        let activeMineFilter = "all";
+        mineFilterBar.querySelectorAll(".mine-filter-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                activeMineFilter = button.dataset.filter;
+                renderMineFeed();
+            });
+        });
+
         let myPosts = [];
         let discoverPosts = [];
         let menuTimer = null;
@@ -399,6 +420,9 @@
                         <div class="meta">
                             <div class="username">${escapeHtml(post.username)}</div>
                             <div class="subline">${escapeHtml(post.handle || "")}${post.location ? " - " + escapeHtml(post.location) : ""}</div>
+                            ${post.isTagged === true && post.isOwner !== true
+                                ? `<span class="post-context tagged"><span class="at-icon" aria-hidden="true">@</span>標記了你</span>`
+                                : `<span class="post-context mine">我的貼文</span>`}
                         </div>
                     </div>
                     <button class="more-btn" onclick="window.toggleMenu(event, '${key}')">${icons.more}</button>
@@ -435,21 +459,34 @@
                 return;
             }
 
-            target.innerHTML = posts.map((post) => `<article class="post-card">${renderPost(post, feedType)}</article>`).join("");
+            target.innerHTML = posts.map((post) => `<article class="post-card${feedType === "mine" && post.isTagged === true && post.isOwner !== true ? " tagged-post" : ""}">${renderPost(post, feedType)}</article>`).join("");
+        }
+
+        function renderMineFeed() {
+            const filtered = activeMineFilter === "mine"
+                ? myPosts.filter((post) => post.isOwner === true)
+                : activeMineFilter === "tagged"
+                    ? myPosts.filter((post) => post.isTagged === true && post.isOwner !== true)
+                    : myPosts;
+            mineFilterBar.querySelectorAll(".mine-filter-btn").forEach((button) => {
+                button.classList.toggle("active", button.dataset.filter === activeMineFilter);
+                button.setAttribute("aria-pressed", button.dataset.filter === activeMineFilter ? "true" : "false");
+            });
+            renderFeed(mineFeed, filtered, "mine");
         }
 
         async function loadMineFeed() {
             const email = localStorage.getItem("myProfileEmail");
             if (!email) {
                 myPosts = [];
-                renderFeed(mineFeed, myPosts, "mine");
+                renderMineFeed();
                 return;
             }
 
             try {
                 await loadFoodiemoRecords(result=>{
                 normalizeMinePosts(Array.isArray(result) ? result : (result.data || []));
-                renderFeed(mineFeed, myPosts, "mine");
+                renderMineFeed();
                 }, {scope: "social"});
             } catch (error) {
                 console.error(TEXT.feedLoadFailed, error);
@@ -580,7 +617,7 @@
                     throw new Error(detail.detail || "取消標記失敗");
                 }
                 myPosts = myPosts.filter((item) => String(item.id) !== String(postId));
-                renderFeed(mineFeed, myPosts, "mine");
+                renderMineFeed();
                 channel.postMessage({action: "updated"});
             } catch (error) {
                 alert(error.message || "取消標記失敗，請稍後再試");
@@ -620,7 +657,7 @@
                 );
                 if (!response.ok) throw new Error("delete failed");
                 myPosts = myPosts.filter((item) => String(item.id) !== String(postId));
-                renderFeed(mineFeed, myPosts, "mine");
+                renderMineFeed();
                 channel.postMessage({ action: "updated" });
             } catch (error) {
                 alert(TEXT.deleteFailed);
