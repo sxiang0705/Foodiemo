@@ -22,17 +22,26 @@ def post(c,row,viewer_id=None):
     comments=c.execute(text("SELECT c.text,c.create_time,u.user_id,u.user_name,u.avatar_path FROM public.platform_comments c JOIN public.users u USING(user_id) WHERE c.record_id=:r AND NOT c.is_deleted ORDER BY c.create_time,c.comment_id"),{"r":row["record_id"]}).mappings().all()
     likes=int(c.execute(text("SELECT count(*) FROM public.record_likes WHERE record_id=:r"),{"r":row["record_id"]}).scalar() or 0)
     is_liked=bool(viewer_id and c.execute(text("SELECT 1 FROM public.record_likes WHERE record_id=:r AND user_id=:u"),{"r":row["record_id"],"u":viewer_id}).scalar())
+    is_owner=bool(viewer_id and int(row["user_id"]) == int(viewer_id))
+    is_tagged=bool(viewer_id and any(int(m["user_id"]) == int(viewer_id) for m in mentions))
     return dict(id=str(row["record_id"]),imageUrls=urls,urls=urls,url=urls[0] if urls else None,
         timestamp=int(row["create_time"].timestamp()*1000),date=row["create_time"].astimezone(TAIPEI).date().isoformat(),
         caption=row["text"] or "",location=row["location_text"] or "",restaurant_id=str(row["restaurant_id"]) if row["restaurant_id"] else None,
         mentions=[dict(id=str(m["user_id"]),name=m["user_name"]) for m in mentions],
         username=author["user_name"],email=author["email"],userAvatar="/api/avatars/"+str(row["user_id"]) if author["avatar_path"] else None,
-        likes=likes,isLiked=is_liked,commentCount=len(comments),
+        likes=likes,isLiked=is_liked,commentCount=len(comments),isOwner=is_owner,isTagged=is_tagged,canEdit=is_owner,
         comments=[dict(user=x["user_name"],text=x["text"],avatar="/api/avatars/"+str(x["user_id"]) if x["avatar_path"] else None,timestamp=x["create_time"].isoformat()) for x in comments])
 @router.get("/get_memories")
-def memories(request:Request,email:str="",c=Depends(connection)):
+def memories(request:Request,email:str="",scope:str=Query("own",pattern="^(own|memories)$"),c=Depends(connection)):
     user=current_user(c,request);check_email(user,email)
-    rows=c.execute(text("SELECT * FROM public.records WHERE user_id=:u ORDER BY create_time DESC,record_id DESC"),{"u":user["user_id"]}).mappings().all()
+    if scope == "memories":
+        rows=c.execute(text("""SELECT DISTINCT r.*
+            FROM public.records r
+            LEFT JOIN public.record_mentions rm ON rm.record_id=r.record_id AND rm.user_id=:u
+            WHERE r.user_id=:u OR rm.user_id IS NOT NULL
+            ORDER BY r.create_time DESC,r.record_id DESC"""),{"u":user["user_id"]}).mappings().all()
+    else:
+        rows=c.execute(text("SELECT * FROM public.records WHERE user_id=:u ORDER BY create_time DESC,record_id DESC"),{"u":user["user_id"]}).mappings().all()
     return [post(c,r,user["user_id"]) for r in rows]
 @router.get("/get_post/{record_id}")
 def get_post(record_id:int,request:Request,c=Depends(connection)):
@@ -129,6 +138,18 @@ def unlike_record(record_id:int,request:Request,c=Depends(connection)):
     c.execute(text("DELETE FROM public.record_likes WHERE record_id=:r AND user_id=:u"),{"r":record_id,"u":user["user_id"]})
     return {"status":"success","liked":False}
 
+@router.delete("/posts/{record_id}/mention")
+def remove_mention(record_id:int,request:Request,c=Depends(connection)):
+    """Allow a mentioned member to remove only their own tag from a post."""
+    user=current_user(c,request)
+    record=c.execute(text("SELECT user_id FROM public.records WHERE record_id=:r"),{"r":record_id}).mappings().first()
+    if not record: raise HTTPException(404,"找不到紀錄")
+    if int(record["user_id"]) == int(user["user_id"]):
+        raise HTTPException(422,"貼文作者不能用取消標記取代編輯")
+    deleted=c.execute(text("DELETE FROM public.record_mentions WHERE record_id=:r AND user_id=:u RETURNING record_id"),{"r":record_id,"u":user["user_id"]}).scalar()
+    if deleted is None: raise HTTPException(404,"你目前沒有被標記在這則貼文")
+    return {"status":"success","record_id":str(record_id),"untagged":True}
+
 @router.delete("/delete_single_photo")
 def delete_photo(post_id:int,photo_url:str,request:Request,email:str="",c=Depends(connection)):
     user,_=owned(c,request,post_id);check_email(user,email)
@@ -147,7 +168,10 @@ def delete_record(record_id:int,request:Request,c=Depends(connection)):
 @router.get("/photos/{photo_id}")
 def photo_file(photo_id:int,request:Request,c=Depends(connection)):
     user=current_user(c,request)
-    key=c.execute(text("SELECT p.storage_path FROM public.photos p JOIN public.records r USING(record_id) WHERE p.photo_id=:p AND r.user_id=:u"),{"p":photo_id,"u":user["user_id"]}).scalar()
+    key=c.execute(text("""SELECT p.storage_path
+        FROM public.photos p JOIN public.records r USING(record_id)
+        WHERE p.photo_id=:p AND (r.user_id=:u OR EXISTS
+          (SELECT 1 FROM public.record_mentions rm WHERE rm.record_id=r.record_id AND rm.user_id=:u))"""),{"p":photo_id,"u":user["user_id"]}).scalar()
     if not key:raise HTTPException(404,"找不到照片")
     path=file_path(request.app.state.storage_root,key)
     if not path.is_file():raise HTTPException(404,"找不到照片")

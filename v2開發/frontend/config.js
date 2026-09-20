@@ -34,20 +34,25 @@ window.FoodiemoViewCache = {
         if(text.length<500000)sessionStorage.setItem('foodiemo-view:'+name,text);
     } catch(e) {} }
 };
-window.loadFoodiemoRecords = async function(render) {
+window.loadFoodiemoRecords = async function(render, options = {}) {
+    // The social/home feeds stay author-only. Memories can request the additional
+    // records where the signed-in member is tagged.
+    const scope = options.scope === 'memories' ? 'memories' : 'own';
+    const cacheName = scope === 'memories' ? 'memories-records' : 'records';
+    const query = scope === 'memories' ? '?scope=memories' : '';
     // Render the last account-scoped snapshot immediately. Session verification and
     // the network refresh continue in the background, so a return is not blank.
-    const cached=FoodiemoViewCache.read('records');
+    const cached=FoodiemoViewCache.read(cacheName);
     if(cached!==null)render(cached);
     const user=await window.FoodiemoSessionReady;
     if(!user)return;
     const generation=sessionStorage.getItem('foodiemo-record-generation');
-    const response=await fetch(DB_CONFIG.apiUrl+'/get_memories');
+    const response=await fetch(DB_CONFIG.apiUrl+'/get_memories'+query);
     if(response.status===401){FoodiemoViewCache.clear();window.top.location.replace('login.html');return;}
     if(!response.ok)throw new Error('資料更新失敗，請稍後重試');
     const result=await response.json();
     if(generation!==sessionStorage.getItem('foodiemo-record-generation') || user.email!==localStorage.getItem('myProfileEmail'))return;
-    FoodiemoViewCache.write('records',result);
+    FoodiemoViewCache.write(cacheName,result);
     if(JSON.stringify(cached)!==JSON.stringify(result))render(result);
 };
 
@@ -74,6 +79,7 @@ window.fetch = function(resource, options = {}) {
         if(response.status===401)FoodiemoViewCache.clear();
         if(response.ok && !['GET','HEAD','OPTIONS'].includes((init.method||'GET').toUpperCase())) {
             sessionStorage.removeItem('foodiemo-view:records');
+            sessionStorage.removeItem('foodiemo-view:memories-records');
             sessionStorage.setItem('foodiemo-record-generation',String(Date.now())+Math.random());
         }
         return response;

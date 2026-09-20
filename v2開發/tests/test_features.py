@@ -114,7 +114,8 @@ def test_photos_order_mentions_ownership_delete(setup):
     with TestClient(app) as stranger:
         assert stranger.get(a).status_code==401
         assert stranger.post('/api/login',json=dict(email=other['email'],password='Correct-password-1')).status_code==200
-        assert stranger.get(a).status_code==404
+        # A tagged member may view the photo in My Memories but cannot edit/delete it.
+        assert stranger.get(a).status_code==200
         assert stranger.delete('/api/posts/'+record).status_code==404
         assert stranger.get('/api/get_memories',params={'email':user['email']}).status_code==403
     assert c.post('/api/upload_memory_post',files={'files':('bad.jpg',b'not an image','image/jpeg')}).status_code==422
@@ -123,6 +124,29 @@ def test_photos_order_mentions_ownership_delete(setup):
     assert c.get(a).status_code==404
     assert list(app.state.storage_root.iterdir())==[]
 
+
+def test_tagged_post_is_in_memories_and_can_be_untagged(setup):
+    c,mail,db,app=setup
+    owner=register(c,mail,'memory-owner@example.test','貼文作者')
+    c.cookies.clear()
+    tagged=register(c,mail,'memory-tagged@example.test','被標記會員')
+    c.cookies.clear()
+    assert c.post('/api/login',json={'email':owner['email'],'password':'Correct-password-1'}).status_code==200
+    created=c.post('/api/upload_memory_post',data={'mention_ids':'["'+tagged['id']+'"]'},files={'files':('tagged.jpg',jpeg(),'image/jpeg')})
+    assert created.status_code==200,created.text
+    record=created.json()['id']
+    assert c.get('/api/get_memories').json()[0]['isOwner'] is True
+    with TestClient(app) as tagged_client:
+        assert tagged_client.post('/api/login',json={'email':tagged['email'],'password':'Correct-password-1'}).status_code==200
+        assert tagged_client.get('/api/get_memories').json()==[]
+        memories=tagged_client.get('/api/get_memories',params={'scope':'memories'}).json()
+        assert len(memories)==1 and memories[0]['id']==record
+        assert memories[0]['isTagged'] is True and memories[0]['isOwner'] is False and memories[0]['canEdit'] is False
+        assert tagged_client.get(memories[0]['url']).status_code==200
+        assert tagged_client.delete('/api/posts/'+record+'/mention').json()['untagged'] is True
+        assert tagged_client.get('/api/get_memories',params={'scope':'memories'}).json()==[]
+        assert tagged_client.delete('/api/posts/'+record+'/mention').status_code==404
+    assert c.get('/api/get_post/'+record).json()['mentions']==[]
 
 def test_capture_message_creates_comment_and_like_persists(setup):
     c,mail,db,app=setup;register(c,mail)
