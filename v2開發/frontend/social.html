@@ -244,6 +244,12 @@
         mentionUiStyle.textContent = '.mention-toggle{position:absolute;right:10px;bottom:10px;width:34px;height:34px;border:1px solid rgba(255,255,255,.72);border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(58,45,37,.58);color:#fff;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);cursor:pointer;z-index:7;transition:transform .18s ease,background .18s ease,box-shadow .18s ease}.mention-toggle:active{transform:scale(.9)}.mention-toggle.show{background:#9C7C66;box-shadow:0 4px 12px rgba(62,45,35,.28)}.mention-toggle svg{width:18px;height:18px}.mention-popover{position:absolute;right:10px;bottom:52px;transform-origin:bottom right;min-width:150px;max-width:calc(100% - 20px);max-height:46%;overflow:auto;padding:10px 12px;border:1px solid rgba(255,255,255,.55);border-radius:16px;background:rgba(50,39,32,.88);color:#fff;box-shadow:0 10px 24px rgba(42,31,24,.28);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;transform:translateY(8px) scale(.9);pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:6}.mention-popover.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}.mention-title{margin-bottom:6px;color:#eadbd0;font-size:11px;font-weight:700}.mention-item{padding:5px 0;color:#fff;font-size:13px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mention-item+.mention-item{border-top:1px solid rgba(255,255,255,.14)}';
         document.head.appendChild(mentionUiStyle);
 
+        // Liquid Glass separation for each post in My Social. Injected at runtime
+        // so the original static frontend styles remain protected.
+        const liquidGlassStyle = document.createElement("style");
+        liquidGlassStyle.textContent = '.liquid-glass-card{position:relative;width:calc(100% - 24px);margin:0 12px 18px;overflow:hidden;border:1px solid rgba(255,255,255,.72);border-radius:26px;background:linear-gradient(145deg,rgba(255,255,255,.56),rgba(255,255,255,.24));box-shadow:0 10px 26px rgba(100,76,60,.12),inset 0 1px 0 rgba(255,255,255,.7);backdrop-filter:blur(18px) saturate(125%);-webkit-backdrop-filter:blur(18px) saturate(125%);isolation:isolate}.liquid-glass-card::before{content:"";position:absolute;inset:0 0 auto;height:42%;background:linear-gradient(115deg,rgba(255,255,255,.34),rgba(255,255,255,0));pointer-events:none;z-index:0}.liquid-glass-card .post-header,.liquid-glass-card .media-container,.liquid-glass-card .post-body{position:relative;z-index:1}.liquid-glass-card .post-header{padding:14px 14px 13px}.liquid-glass-card .media-container{width:calc(100% - 16px);margin:0 8px;border-radius:19px}.liquid-glass-card .post-body{padding:12px 14px 15px}.liquid-glass-card .popup-menu{right:8px;top:42px;border:1px solid rgba(255,255,255,.7);border-radius:16px;background:rgba(255,255,255,.82);box-shadow:0 12px 26px rgba(77,57,45,.18);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}.liquid-glass-card .menu-item{background:transparent}.liquid-glass-card .menu-item+.menu-item{border-top-color:rgba(120,94,77,.12)}@media (max-width:360px){.liquid-glass-card{width:calc(100% - 16px);margin-left:8px;margin-right:8px;border-radius:22px}.liquid-glass-card .media-container{width:calc(100% - 12px);margin-left:6px;margin-right:6px;border-radius:16px}}';
+        document.head.appendChild(liquidGlassStyle);
+
         const icons = {
             more: "...",
             heartOutline: '<svg viewBox="0 0 24 24" fill="none" stroke="#3f332c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>',
@@ -430,7 +436,7 @@
                 return;
             }
 
-            target.innerHTML = posts.map((post) => `<article class="post-card">${renderPost(post, feedType)}</article>`).join("");
+            target.innerHTML = posts.map((post) => `<article class="post-card${feedType === "mine" ? " liquid-glass-card" : ""}">${renderPost(post, feedType)}</article>`).join("");
         }
 
         async function loadMineFeed() {
