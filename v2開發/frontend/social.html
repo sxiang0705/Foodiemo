@@ -210,6 +210,7 @@
             menuEdit: "\u7de8\u8f2f",
             menuReport: "\u6aa2\u8209",
             menuDelete: "\u522a\u9664",
+            menuUntag: "\u53d6\u6d88\u88ab\u6a19\u8a18",
             menuCollab: "\u5171\u540c\u7de8\u8f2f",
             menuCollabPremium: "\u5171\u540c\u7de8\u8f2f\uff08\u6703\u54e1\uff09",
             discoverReadOnly: "\u63a8\u85a6\u8cbc\u6587\u76ee\u524d\u53ea\u958b\u653e\u700f\u89bd\u8207\u6309\u8b9a\u3002",
@@ -335,11 +336,20 @@
                 isLiked: !!post.isLiked,
                 mentions: Array.isArray(post.mentions)
                     ? post.mentions.filter(item => item && item.id != null).map(item => ({id:String(item.id),name:String(item.name || "會員")}))
-                    : []
+                    : [],
+                isOwner: post.isOwner !== false,
+                isTagged: post.isTagged === true,
+                canEdit: post.canEdit !== false
             }));
         }
 
-        function getMenu(feedType, postId) {
+        function getMenu(feedType, postId, post = {}) {
+            if (post.isTagged === true && post.isOwner !== true) {
+                return `
+                    <button class="menu-item" onclick="window.removeTag(event, '${postId}')">${TEXT.menuUntag}</button>
+                    <button class="menu-item" onclick="window.reportPost(event, '${postId}', 'tagged')">${TEXT.menuReport}</button>
+                `;
+            }
             const premiumItem = isPremiumUser()
                 ? `<button class="menu-item" onclick="window.collabEdit(event, '${postId}', ${feedType === "discover"})">${TEXT.menuCollab}</button>`
                 : `<button class="menu-item locked" onclick="window.goPremium(event)">${TEXT.menuCollabPremium}</button>`;
@@ -388,7 +398,7 @@
                     </div>
                     <button class="more-btn" onclick="window.toggleMenu(event, '${key}')">${icons.more}</button>
                     <div id="menu-${key}" class="popup-menu" onclick="event.stopPropagation()">
-                        ${getMenu(feedType, post.id)}
+                        ${getMenu(feedType, post.id, post)}
                     </div>
                 </div>
                 <div class="media-container">
@@ -435,7 +445,7 @@
                 await loadFoodiemoRecords(result=>{
                 normalizeMinePosts(Array.isArray(result) ? result : (result.data || []));
                 renderFeed(mineFeed, myPosts, "mine");
-                });
+                }, {scope: "social"});
             } catch (error) {
                 console.error(TEXT.feedLoadFailed, error);
                 if(!mineFeed.children.length)mineFeed.textContent = "讀取貼文失敗，請稍後再試";
@@ -553,9 +563,28 @@
             openEmbeddedFeature("edit.html?id=" + encodeURIComponent(postId) + "&from=social");
         };
 
+        window.removeTag = async function(event, postId) {
+            event.stopPropagation();
+            const post = myPosts.find((item) => String(item.id) === String(postId));
+            if (!post || post.isTagged !== true || post.isOwner === true) return;
+            if (!confirm("取消後，你將不再在這則貼文的標記名單中。確定要取消嗎？")) return;
+            try {
+                const response = await fetch(API_BASE_URL + "/posts/" + encodeURIComponent(postId) + "/mention", {method: "DELETE"});
+                if (!response.ok) {
+                    const detail = await response.json().catch(() => ({}));
+                    throw new Error(detail.detail || "取消標記失敗");
+                }
+                myPosts = myPosts.filter((item) => String(item.id) !== String(postId));
+                renderFeed(mineFeed, myPosts, "mine");
+                channel.postMessage({action: "updated"});
+            } catch (error) {
+                alert(error.message || "取消標記失敗，請稍後再試");
+            }
+        };
+
         window.reportPost = function(event, postId, feedType) {
             event.stopPropagation();
-            alert(feedType === "mine" ? TEXT.reportedMine : TEXT.reportedDiscover);
+            alert(feedType === "discover" ? TEXT.reportedDiscover : TEXT.reportedMine);
         };
 
         window.goPremium = function(event) {

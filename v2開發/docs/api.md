@@ -51,7 +51,7 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/reset_password | POST reset_token/new_password；成功撤銷該帳號所有工作階段 |
 | /api/me | GET 會員身分、avatar_url、is_premium、preferences |
 | /api/preferences | PUT version=1、answers 六題 key/value；選項需完全符合原六題 |
-| /api/get_memories、/api/get_post/{id} | GET 自己的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked`、`commentCount`；`/api/get_memories?scope=memories` 會再合併目前登入會員被標記的貼文，附 `isOwner`、`isTagged`、`canEdit` 權限欄位 |
+| /api/get_memories、/api/get_post/{id} | GET 作者紀錄或登入者被標記的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked`、`commentCount`；`/api/get_memories?scope=memories` 或 `scope=social` 會再合併目前登入會員被標記的貼文，附 `isOwner`、`isTagged`、`canEdit` 權限欄位 |
 | /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；可附 `initial_comment`（最多 2000 字）建立第一則留言；沒有餐廳選擇時可附 `photo_location_text`（最多 200 字）保存照片 EXIF GPS 的顯示標籤；更新須 post_id |
 | /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；`/api/members` 不帶 q 時先回傳目前已接受的好友，輸入 q 時搜尋其他已驗證會員；ID 以字串傳遞 |
 | /api/posts/{id}/mention | DELETE 由被標記會員取消自己的標記；作者或未被標記會員不能呼叫成功 |
@@ -60,10 +60,10 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 | /api/friends/requests/{id}/approve、/reject | POST；批准或忽略收到的好友請求 |
 | /api/chats/{friend_id}/messages | GET；讀取已接受好友的聊天訊息（可用 after_id 增量輪詢）；POST JSON text；只有已接受好友可收發，訊息最多 2000 字 |
 | /api/posts/{id} | DELETE 整篇紀錄及照片引用 |
-| /api/posts/{id}/like | POST／DELETE；目前登入者對自己的紀錄新增／取消愛心，重複新增不會重複計數 |
-| /api/delete_single_photo | DELETE post_id/photo_url；只刪自己指定的一張 |
-| /api/photos/{id} | GET 作者限定的 JPEG；不公開本機檔案路徑 |
-| /api/add_comment | POST photo_id（沿用原版，值為紀錄 ID）、text；只可於自己紀錄留言 |
+| /api/posts/{id}/like | POST／DELETE；目前登入者對自己或被標記的紀錄新增／取消愛心，重複新增不會重複計數 |
+| /api/delete_single_photo | DELETE post_id/photo_url；只刪作者自己指定的一張 |
+| /api/photos/{id} | GET 作者或被標記會員可讀取 JPEG；不公開本機檔案路徑 |
+| /api/add_comment | POST photo_id（沿用原版，值為紀錄 ID）、text；作者或被標記會員可留言 |
 | /api/update_profile_name、/api/upload_avatar | POST multipart name 或 file |
 | /api/check_vip/{email}、/api/upgrade_premium | GET 會員狀態／POST Demo 開通，金額 0、simulated=true |
 

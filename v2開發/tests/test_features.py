@@ -140,9 +140,11 @@ def test_tagged_post_is_in_memories_and_can_be_untagged(setup):
         assert tagged_client.post('/api/login',json={'email':tagged['email'],'password':'Correct-password-1'}).status_code==200
         assert tagged_client.get('/api/get_memories').json()==[]
         memories=tagged_client.get('/api/get_memories',params={'scope':'memories'}).json()
-        assert len(memories)==1 and memories[0]['id']==record
+        social=tagged_client.get('/api/get_memories',params={'scope':'social'}).json()
+        assert len(memories)==1 and len(social)==1 and social[0]['id']==record
         assert memories[0]['isTagged'] is True and memories[0]['isOwner'] is False and memories[0]['canEdit'] is False
         assert tagged_client.get(memories[0]['url']).status_code==200
+        assert tagged_client.post('/api/posts/'+record+'/like').status_code==200
         assert tagged_client.delete('/api/posts/'+record+'/mention').json()['untagged'] is True
         assert tagged_client.get('/api/get_memories',params={'scope':'memories'}).json()==[]
         assert tagged_client.delete('/api/posts/'+record+'/mention').status_code==404

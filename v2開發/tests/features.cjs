@@ -47,6 +47,9 @@ const otp=purpose=>JSON.parse(fs.readFileSync(process.env.V2_BROWSER_MAILBOX,'ut
  await mentionToggle.click();const mentionPopover=page.locator('#mineFeed .mention-popover').first();assert.equal(await mentionPopover.getAttribute('aria-hidden'),'false');assert.match(await mentionPopover.innerText(),/Browser Friend/);
  await mentionToggle.click();assert.equal(await mentionPopover.getAttribute('aria-hidden'),'true');await mentionToggle.click();await page.evaluate(()=>document.body.dispatchEvent(new MouseEvent('click',{bubbles:true})));assert.equal(await mentionPopover.getAttribute('aria-hidden'),'true');pass('社群貼文圖片顯示標記好友按鈕與動畫彈窗');
  await context.request.post(BASE+'/api/logout');await context.request.post(BASE+'/api/login',{data:{email:FRIEND_EMAIL,password:'Friend-password-1'}});
+ await page.goto(BASE+'/social.html');await page.locator('#mineFeed article.post-card').first().waitFor();await page.locator('#mineFeed .more-btn').first().click();
+ assert.equal(await page.locator('#menu-mine-'+post.id+' .menu-item').count(),2);assert.match(await page.locator('#menu-mine-'+post.id).innerText(),/取消被標記/);assert.match(await page.locator('#menu-mine-'+post.id).innerText(),/檢舉/);pass('我的社群顯示被標記貼文且僅提供取消標記與檢舉');
+ await page.locator('#menu-mine-'+post.id+' .menu-item').filter({hasText:'檢舉'}).click();
  await page.goto(BASE+'/memories.html');await page.locator('.day-cell img').first().waitFor();await page.locator('.day-cell img').first().click();await page.waitForSelector('#storyOverlay.active');
  await page.locator('#storyMenuButton').waitFor({state:'visible'});await page.click('#storyMenuButton');assert.equal(await page.locator('#storyMenu').getAttribute('aria-hidden'),'false');assert.equal(await page.locator('#storyMenu [role=menuitem]').count(),2);
  await page.locator('#storyMenu [role=menuitem]').filter({hasText:'檢舉'}).click();await page.click('#storyMenuButton');await page.locator('#storyMenu [role=menuitem]').filter({hasText:'取消被標記'}).click();

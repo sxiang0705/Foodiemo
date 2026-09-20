@@ -37,9 +37,9 @@ window.FoodiemoViewCache = {
 window.loadFoodiemoRecords = async function(render, options = {}) {
     // The social/home feeds stay author-only. Memories can request the additional
     // records where the signed-in member is tagged.
-    const scope = options.scope === 'memories' ? 'memories' : 'own';
-    const cacheName = scope === 'memories' ? 'memories-records' : 'records';
-    const query = scope === 'memories' ? '?scope=memories' : '';
+    const scope = ['memories', 'social'].includes(options.scope) ? options.scope : 'own';
+    const cacheName = scope === 'memories' ? 'memories-records' : (scope === 'social' ? 'social-records' : 'records');
+    const query = scope === 'memories' ? '?scope=memories' : (scope === 'social' ? '?scope=social' : '');
     // Render the last account-scoped snapshot immediately. Session verification and
     // the network refresh continue in the background, so a return is not blank.
     const cached=FoodiemoViewCache.read(cacheName);
@@ -80,6 +80,7 @@ window.fetch = function(resource, options = {}) {
         if(response.ok && !['GET','HEAD','OPTIONS'].includes((init.method||'GET').toUpperCase())) {
             sessionStorage.removeItem('foodiemo-view:records');
             sessionStorage.removeItem('foodiemo-view:memories-records');
+            sessionStorage.removeItem('foodiemo-view:social-records');
             sessionStorage.setItem('foodiemo-record-generation',String(Date.now())+Math.random());
         }
         return response;

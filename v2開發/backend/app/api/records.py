@@ -14,6 +14,13 @@ def owned(c,request,id):
     row=c.execute(text("SELECT * FROM public.records WHERE record_id=:id AND user_id=:u FOR UPDATE"),{"id":id,"u":user["user_id"]}).mappings().first()
     if not row:raise HTTPException(404,"找不到紀錄")
     return user,row
+def accessible(c,request,id):
+    user=current_user(c,request)
+    row=c.execute(text("""SELECT r.* FROM public.records r
+        WHERE r.record_id=:id AND (r.user_id=:u OR EXISTS
+          (SELECT 1 FROM public.record_mentions rm WHERE rm.record_id=r.record_id AND rm.user_id=:u))"""),{"id":id,"u":user["user_id"]}).mappings().first()
+    if not row: raise HTTPException(404,"找不到紀錄")
+    return user,row
 def post(c,row,viewer_id=None):
     author=c.execute(text("SELECT user_name,avatar_path,email FROM public.users WHERE user_id=:u"),{"u":row["user_id"]}).mappings().one()
     photos=c.execute(text("SELECT photo_id,storage_path FROM public.photos WHERE record_id=:r ORDER BY sort_order,photo_id"),{"r":row["record_id"]}).mappings().all()
@@ -32,9 +39,9 @@ def post(c,row,viewer_id=None):
         likes=likes,isLiked=is_liked,commentCount=len(comments),isOwner=is_owner,isTagged=is_tagged,canEdit=is_owner,
         comments=[dict(user=x["user_name"],text=x["text"],avatar="/api/avatars/"+str(x["user_id"]) if x["avatar_path"] else None,timestamp=x["create_time"].isoformat()) for x in comments])
 @router.get("/get_memories")
-def memories(request:Request,email:str="",scope:str=Query("own",pattern="^(own|memories)$"),c=Depends(connection)):
+def memories(request:Request,email:str="",scope:str=Query("own",pattern="^(own|memories|social)$"),c=Depends(connection)):
     user=current_user(c,request);check_email(user,email)
-    if scope == "memories":
+    if scope in {"memories", "social"}:
         rows=c.execute(text("""SELECT DISTINCT r.*
             FROM public.records r
             LEFT JOIN public.record_mentions rm ON rm.record_id=r.record_id AND rm.user_id=:u
@@ -45,7 +52,7 @@ def memories(request:Request,email:str="",scope:str=Query("own",pattern="^(own|m
     return [post(c,r,user["user_id"]) for r in rows]
 @router.get("/get_post/{record_id}")
 def get_post(record_id:int,request:Request,c=Depends(connection)):
-    user,row=owned(c,request,record_id);return post(c,row,user["user_id"])
+    user,row=accessible(c,request,record_id);return post(c,row,user["user_id"])
 def ids_json(value,limit=10):
     try:
         data=json.loads(value or "[]")
@@ -128,13 +135,13 @@ async def save_post(request:Request,c=Depends(connection)):
 
 @router.post("/posts/{record_id}/like")
 def like_record(record_id:int,request:Request,c=Depends(connection)):
-    user,_=owned(c,request,record_id)
+    user,_=accessible(c,request,record_id)
     c.execute(text("INSERT INTO public.record_likes(record_id,user_id) VALUES(:r,:u) ON CONFLICT (record_id,user_id) DO NOTHING"),{"r":record_id,"u":user["user_id"]})
     return {"status":"success","liked":True}
 
 @router.delete("/posts/{record_id}/like")
 def unlike_record(record_id:int,request:Request,c=Depends(connection)):
-    user,_=owned(c,request,record_id)
+    user,_=accessible(c,request,record_id)
     c.execute(text("DELETE FROM public.record_likes WHERE record_id=:r AND user_id=:u"),{"r":record_id,"u":user["user_id"]})
     return {"status":"success","liked":False}
 
@@ -206,7 +213,7 @@ class Comment(BaseModel):
 def comment(data:Comment,request:Request,c=Depends(connection)):
     try:id=int(data.photo_id)
     except ValueError:raise HTTPException(422,"紀錄 ID 不正確") from None
-    user,_=owned(c,request,id);check_email(user,data.user_email)
+    user,_=accessible(c,request,id);check_email(user,data.user_email)
     if not data.text.strip():raise HTTPException(422,"留言不能空白")
     c.execute(text("INSERT INTO public.platform_comments(record_id,user_id,text) VALUES(:r,:u,:t)"),{"r":id,"u":user["user_id"],"t":data.text.strip()})
     return {"status":"success"}
