@@ -68,7 +68,7 @@
     </div>
 
     <div class="content" id="comments-list">
-        <div style="text-align:center; margin-top:50px; color:#999;">Loading...</div>
+        <div class="comments-loading" role="status" aria-live="polite">Loading...</div>
     </div>
 
     <div class="footer">
@@ -96,6 +96,10 @@
         console.log("📍 目前網址列抓到的 postId:", postId);
 
         const channel = new BroadcastChannel('memory_update');
+
+        const commentsUiStyle = document.createElement('style');
+        commentsUiStyle.textContent = '.comments-loading{min-height:120px;display:flex;align-items:center;justify-content:center;gap:8px;color:#999;font-size:14px}.comments-loading::before{content:"";width:16px;height:16px;border:2px solid rgba(191,160,147,.28);border-top-color:#bfa093;border-radius:50%;animation:commentsSpin .72s linear infinite}@keyframes commentsSpin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(commentsUiStyle);
 
         function initDB() {
             return window.FoodiemoInitDB().then(value => { db = value; return value; });

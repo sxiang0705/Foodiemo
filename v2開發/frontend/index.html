@@ -194,9 +194,9 @@
         featureOverlay.classList.toggle('comment-feature', isCommentFeature);
         featureFrame.style.background = isCommentFeature ? 'transparent' : '#F3ECE5';
         featureOverlay.style.display = 'block';
-        featureOverlay.style.visibility = cachedFeature ? 'visible' : 'hidden';
+        featureOverlay.style.visibility = (cachedFeature || isCommentFeature) ? 'visible' : 'hidden';
         featureOverlay.setAttribute('aria-hidden', 'false');
-        featureFrame.classList.toggle('feature-loading', !cachedFeature);
+        featureFrame.classList.toggle('feature-loading', !cachedFeature && !isCommentFeature);
         isScrollLocked = true;
         if (cachedFeature) {
             featureLoadedUrl = url;
@@ -205,7 +205,11 @@
         }
         featureLoadedUrl = '';
         featureReadyUrl = '';
-        showShellLoading('頁面載入中…', true);
+        if (isCommentFeature) {
+            hideShellLoading();
+        } else {
+            showShellLoading('頁面載入中…', true);
+        }
         featureFrame.onload = () => {
             // A fast open-close-open sequence can deliver an old iframe load
             // after a newer navigation. Only the latest transition may reveal it.

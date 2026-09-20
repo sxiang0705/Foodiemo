@@ -419,7 +419,7 @@
                         <img src="${escapeHtml(getAvatar(post.userAvatar))}" class="avatar" onerror="this.src=window.DEFAULT_AVATAR_URL">
                         <div class="meta">
                             <div class="username">${escapeHtml(post.username)}</div>
-                            <div class="subline">${escapeHtml(post.handle || "")}${post.location ? " - " + escapeHtml(post.location) : ""}</div>
+                            ${post.location ? `<div class="subline">${escapeHtml(post.location)}</div>` : ""}
                             ${post.isTagged === true && post.isOwner !== true
                                 ? `<span class="post-context tagged"><span class="at-icon" aria-hidden="true">@</span>標記了你</span>`
                                 : `<span class="post-context mine">我的貼文</span>`}
