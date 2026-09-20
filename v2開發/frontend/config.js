@@ -4,7 +4,7 @@ function resolveApiBaseUrl() {
     return window.location.origin + "/api";
 }
 
-const FOODIEMO_BUILD = Object.freeze({version: "v2.1.8", updatedAt: "2026-09-20T15:58:34+08:00"});
+const FOODIEMO_BUILD = Object.freeze({version: "v2.1.9", updatedAt: "2026-09-20T16:23:56+08:00"});
 window.FOODIEMO_BUILD = FOODIEMO_BUILD;
 
 const DB_CONFIG = {
@@ -141,7 +141,7 @@ window.applyAvatarBackground = applyAvatarBackground;
 window.signalFoodiemoFeatureReady = function() {
     if (window.__foodiemoFeatureReadySent || window.top === window) return;
     window.__foodiemoFeatureReadySent = true;
-    requestAnimationFrame(() => requestAnimationFrame(() => window.top.postMessage({type:'featureReady'}, '*')));
+    requestAnimationFrame(() => requestAnimationFrame(() => window.top.postMessage({type:'featureReady', url:window.location.href}, '*')));
 };
 window.signalFoodiemoFrameReady = function(pageIndex) {
     if (window.top === window) return;

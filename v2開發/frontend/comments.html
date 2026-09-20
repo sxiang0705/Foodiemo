@@ -304,7 +304,10 @@
             document.body.addEventListener('click', event => {
                 if (event.target === document.body || event.target === document.documentElement) closeEmbeddedFeature();
             });
-            requestAnimationFrame(() => {                document.body.classList.add('comments-sheet-ready');                requestAnimationFrame(() => window.top.postMessage({type:'featureReady'}, '*'));            });
+            requestAnimationFrame(() => {
+                document.body.classList.add('comments-sheet-ready');
+                requestAnimationFrame(() => window.signalFoodiemoFeatureReady?.());
+            });
         }
 
         activateCommentSheet();

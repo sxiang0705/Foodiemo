@@ -194,7 +194,7 @@
         featureOverlay.classList.toggle('comment-feature', isCommentFeature);
         featureFrame.style.background = isCommentFeature ? 'transparent' : '#F3ECE5';
         featureOverlay.style.display = 'block';
-        featureOverlay.style.visibility = (cachedFeature || isCommentFeature) ? 'visible' : 'hidden';
+        featureOverlay.style.visibility = cachedFeature ? 'visible' : 'hidden';
         featureOverlay.setAttribute('aria-hidden', 'false');
         featureFrame.classList.toggle('feature-loading', !cachedFeature && !isCommentFeature);
         isScrollLocked = true;
@@ -422,6 +422,10 @@
             return;
         }
         if (e.data?.type === 'featureReady' && e.source === featureFrame?.contentWindow) {
+            try {
+                const readyUrl = e.data.url ? new URL(e.data.url, location.href).href : '';
+                if (readyUrl && readyUrl !== featureFrame?.src) return;
+            } catch (_) { return; }
             markFeatureReady();
             return;
         }
