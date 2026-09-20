@@ -1,5 +1,5 @@
 // 定義快取名稱
-const CACHE_NAME = 'foodiemo-v2-static-v6';
+const CACHE_NAME = 'foodiemo-v2-static-v7';
 
 // 定義需要快取的資源清單
 const ASSETS_TO_CACHE = [
@@ -9,6 +9,7 @@ const ASSETS_TO_CACHE = [
   './home.html',
   './social.html',
   './memories.html',
+  './monthly-recap.html',
   './profile.html',
   './login.html',
   './signup.html',

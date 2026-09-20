@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monthly Recap</title>
+    <style>
+        :root{--paper:#f3ece5;--ink:#59493f;--muted:#9f8d81;--brand:#9c7c66;--line:rgba(140,115,93,.2);}
+        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+        html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+        body{padding-bottom:42px;overflow-y:auto}
+        button{font:inherit}
+        .recap-header{position:sticky;top:0;z-index:5;height:68px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;background:rgba(243,236,229,.9);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.45)}
+        .back-button,.header-action{width:40px;height:40px;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(156,124,102,.14);color:var(--brand);cursor:pointer}
+        .back-button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .header-title{text-align:center}.header-title span{display:block;font-size:10px;letter-spacing:.18em;color:var(--muted);font-weight:800}.header-title strong{display:block;margin-top:3px;font-size:16px;color:var(--ink)}
+        .header-action{font-size:18px}
+        .recap-main{width:min(100% - 32px,620px);margin:0 auto}
+        .loading-state,.error-state{min-height:45vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:14px}
+        .loading-state::before{content:"";width:18px;height:18px;margin-right:9px;border:2px solid rgba(156,124,102,.25);border-top-color:var(--brand);border-radius:50%;animation:spin .72s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+        .hero{position:relative;min-height:390px;margin:18px 0 22px;border-radius:32px;overflow:hidden;background:linear-gradient(135deg,#b18b72,#806451);color:#fff;box-shadow:0 16px 34px rgba(96,73,57,.18)}
+        .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(37,26,20,.05) 20%,rgba(37,26,20,.82) 100%)}
+        .hero-copy{position:absolute;inset:auto 24px 25px;z-index:1}.hero-kicker{font-size:11px;letter-spacing:.2em;font-weight:800;opacity:.8}.hero h1{margin:6px 0 7px;font-size:38px;line-height:1}.hero p{max-width:470px;margin:0;font-size:15px;line-height:1.55;opacity:.92}.hero-meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px;font-size:12px;font-weight:700}.hero-meta span{padding:7px 10px;border:1px solid rgba(255,255,255,.34);border-radius:999px;background:rgba(255,255,255,.12);backdrop-filter:blur(8px)}
+        .section{margin:0 0 25px}.section-heading{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px}.section-heading h2{margin:0;font-size:20px;color:var(--ink)}.section-heading span{font-size:11px;color:var(--muted)}
+        .insight-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.insight{min-height:92px;padding:14px;border-radius:20px;background:rgba(255,255,255,.64);box-shadow:0 7px 18px rgba(96,73,57,.06)}.insight-label{font-size:11px;color:var(--muted)}.insight-value{margin-top:7px;font-size:17px;font-weight:800;color:var(--brand);line-height:1.25}.insight-text{margin-top:5px;font-size:12px;line-height:1.4;color:#806b5d}
+        .timeline{position:relative;padding-left:17px}.timeline::before{content:"";position:absolute;left:3px;top:8px;bottom:8px;width:1px;background:var(--line)}.timeline-item{position:relative;margin:0 0 17px}.timeline-item::before{content:"";position:absolute;left:-18px;top:7px;width:8px;height:8px;border:2px solid var(--paper);border-radius:50%;background:var(--brand);box-shadow:0 0 0 1px var(--brand)}.timeline-date{margin-bottom:7px;font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.06em}.timeline-card{padding:12px;border-radius:22px;background:rgba(255,255,255,.7);box-shadow:0 7px 18px rgba(96,73,57,.06)}.timeline-images{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.timeline-images img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:13px;background:#dfd1c5;cursor:zoom-in}.timeline-caption{margin-top:9px;font-size:13px;line-height:1.45;color:var(--ink)}.timeline-meta{margin-top:5px;font-size:11px;color:var(--muted)}
+        .editor{padding:16px;border-radius:24px;background:rgba(255,255,255,.68);box-shadow:0 7px 18px rgba(96,73,57,.06)}.editor label{display:block;margin-bottom:7px;font-size:12px;font-weight:800;color:var(--brand)}.editor textarea{width:100%;min-height:82px;resize:vertical;border:1px solid rgba(156,124,102,.2);border-radius:15px;padding:11px;background:rgba(243,236,229,.72);color:var(--ink);font:14px/1.5 inherit;outline:none}.editor textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(156,124,102,.1)}.editor-row{display:flex;justify-content:flex-end;margin:8px 0 16px}.editor-row:last-child{margin-bottom:0}.save-button{border:0;border-radius:999px;padding:8px 14px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;cursor:pointer}.saved-note{min-height:16px;margin-left:8px;color:#8c735d;font-size:11px;align-self:center}
+        .history{display:flex;gap:8px;overflow-x:auto;padding-bottom:5px;scrollbar-width:none}.history::-webkit-scrollbar{display:none}.history button{flex:none;border:1px solid rgba(156,124,102,.2);border-radius:999px;padding:8px 13px;background:rgba(255,255,255,.5);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer}.history button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+        .photo-viewer{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(28,21,17,.9)}.photo-viewer.show{display:flex}.photo-viewer img{max-width:100%;max-height:85vh;object-fit:contain;border-radius:18px}.photo-viewer button{position:absolute;top:18px;right:18px;width:40px;height:40px;border:0;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:26px;cursor:pointer}
+        @media (min-width:600px){.insight-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.hero{min-height:430px}.timeline-images{grid-template-columns:repeat(4,1fr)}}
+        @media print{.recap-header,.history,.editor,.header-action,.back-button{display:none!important}.recap-main{width:100%;max-width:none}.hero{break-inside:avoid;box-shadow:none}.section{break-inside:avoid}}
+    </style>
+</head>
+<body>
+    <header class="recap-header">
+        <button class="back-button" id="backButton" type="button" aria-label="返回 My Memories"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+        <div class="header-title"><span>FOODIEMO</span><strong>Monthly Recap</strong></div>
+        <button class="header-action" id="printButton" type="button" aria-label="列印或下載">⇩</button>
+    </header>
+    <main class="recap-main" id="recapRoot"><div class="loading-state" role="status">正在整理你的月份回憶…</div></main>
+    <div class="photo-viewer" id="photoViewer" aria-hidden="true"><button id="closePhotoButton" type="button" aria-label="關閉">×</button><img id="photoViewerImage" alt="回憶照片"></div>
+    <script src="env.js"></script>
+    <script src="config.js"></script>
+    <script>
+        const API_BASE_URL = (window.DB_CONFIG?.apiUrl || window.location.origin + '/api').replace(/\/$/, '');
+        const root = document.getElementById('recapRoot');
+        const photoViewer = document.getElementById('photoViewer');
+        const photoViewerImage = document.getElementById('photoViewerImage');
+        const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        let records = [];
+        let selectedMonth = new URLSearchParams(location.search).get('month');
+        if (!/^\d{4}-\d{2}$/.test(selectedMonth || '')) selectedMonth = new Date().toISOString().slice(0,7);
+
+        function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
+        function monthLabel(key) { const [year, month] = key.split('-').map(Number); return `${monthNames[month - 1] || 'Month'} ${year}`; }
+        function monthKeys() { return [...new Set(records.map(record => String(record.date || '').slice(0,7)).filter(key => /^\d{4}-\d{2}$/.test(key)))].sort().reverse(); }
+        function monthRecords() { return records.filter(record => String(record.date || '').startsWith(selectedMonth)); }
+        function imagesFor(record) { return Array.isArray(record.imageUrls) ? record.imageUrls : (record.url ? [record.url] : []); }
+        function localKey(type) { const email = localStorage.getItem('myProfileEmail') || 'guest'; return `foodiemo-recap-${type}-${email}-${selectedMonth}`; }
+        function displayDate(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('zh-TW',{month:'short',day:'numeric'}); }
+        function countBy(values) { return values.reduce((map, value) => { map[value] = (map[value] || 0) + 1; return map; }, {}); }
+        function firstByCount(values) { const entries = Object.entries(countBy(values)).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0])); return entries[0] || null; }
+        function changeMonth(step) { const [year, month] = selectedMonth.split('-').map(Number); const date = new Date(year, month - 1 + step, 1); selectedMonth = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`; render(); }
+        function closePage() { if (window.top !== window) window.top.postMessage({type:'closeFeature'}, '*'); else history.back(); }
+        function showPhoto(src) { photoViewerImage.src = src; photoViewer.classList.add('show'); photoViewer.setAttribute('aria-hidden','false'); }
+        function hidePhoto() { photoViewer.classList.remove('show'); photoViewer.setAttribute('aria-hidden','true'); photoViewerImage.removeAttribute('src'); }
+        function saveEditor(type) { const input = document.getElementById(type === 'summary' ? 'summaryInput' : 'noteInput'); if (!input) return; localStorage.setItem(localKey(type), input.value.trim()); const status = document.getElementById(type === 'summary' ? 'summarySaved' : 'noteSaved'); if (status) { status.textContent = '已保存'; setTimeout(() => { status.textContent = ''; }, 1500); } }
+
+        function render() {
+            const current = monthRecords().sort((a,b) => String(a.date).localeCompare(String(b.date)) || Number(a.timestamp || 0) - Number(b.timestamp || 0));
+            const photos = current.flatMap(imagesFor);
+            const places = current.map(record => String(record.location || '').trim()).filter(Boolean);
+            const people = current.flatMap(record => Array.isArray(record.mentions) ? record.mentions.map(item => item.name).filter(Boolean) : []);
+            const topPlace = firstByCount(places);
+            const topPerson = firstByCount(people);
+            const lateCount = current.filter(record => { const hour = new Date(record.timestamp || 0).getHours(); return hour >= 20 || hour < 4; }).length;
+            const cover = photos[0] || 'IMG_1940.jpg';
+            const generatedSummary = current.length ? `${monthLabel(selectedMonth)}，你留下了 ${current.length} 段記憶、${photos.length} 張照片。${topPlace ? `這個月最常出現的是 ${topPlace[0]}。` : '平凡的日子也被你保存下來了。'}` : `${monthLabel(selectedMonth)} 還沒有記憶，留一點空白給下一個故事。`;
+            const insightPlace = topPlace ? `${topPlace[0]} (${topPlace[1]} 次)` : '還沒有地點';
+            const insightPerson = topPerson ? `${topPerson[0]} (${topPerson[1]} 次)` : '還沒有標記好友';
+            const insightRhythm = lateCount ? `${lateCount} 次晚間記錄` : '白天的記憶較多';
+            const history = monthKeys();
+            if (!history.includes(selectedMonth)) history.unshift(selectedMonth);
+            root.innerHTML = `<section class="hero"><img src="${escapeHtml(cover)}" alt="${escapeHtml(monthLabel(selectedMonth))}" onerror="this.src='IMG_1940.jpg'"><div class="hero-copy"><div class="hero-kicker">MONTHLY MEMORY STORY</div><h1>${escapeHtml(monthLabel(selectedMonth))}</h1><p>${escapeHtml(generatedSummary)}</p><div class="hero-meta"><span>${current.length} 段記憶</span><span>${photos.length} 張照片</span><span>${new Set(places).size} 個地點</span><span>${new Set(people).size} 位朋友</span></div></div></section>
+                <section class="section"><div class="section-heading"><h2>這個月的樣子</h2><span>Small patterns</span></div><div class="insight-grid"><div class="insight"><div class="insight-label">最常出現的地點</div><div class="insight-value">${escapeHtml(insightPlace)}</div></div><div class="insight"><div class="insight-label">一起出現的人</div><div class="insight-value">${escapeHtml(insightPerson)}</div></div><div class="insight"><div class="insight-label">生活節奏</div><div class="insight-value">${escapeHtml(insightRhythm)}</div></div><div class="insight"><div class="insight-label">照片數量</div><div class="insight-value">${photos.length}</div><div class="insight-text">每一張都是一個回來的入口</div></div></div></section>
+                <section class="section"><div class="section-heading"><h2>記憶時間軸</h2><span>${current.length} entries</span></div><div class="timeline">${current.length ? current.map(record => `<article class="timeline-item"><div class="timeline-date">${escapeHtml(displayDate(record.date))}</div><div class="timeline-card"><div class="timeline-images">${imagesFor(record).map(src => `<img class="timeline-photo" src="${escapeHtml(src)}" alt="${escapeHtml(record.caption || '記憶照片')}" loading="lazy" data-photo-src="${escapeHtml(src)}" onerror="this.src='IMG_1940.jpg'">`).join('')}</div>${record.caption ? `<div class="timeline-caption">${escapeHtml(record.caption)}</div>` : ''}${record.location || (record.mentions || []).length ? `<div class="timeline-meta">${record.location ? escapeHtml(record.location) : ''}${record.location && record.mentions?.length ? ' · ' : ''}${record.mentions?.length ? '與 ' + escapeHtml(record.mentions.map(item => item.name).join('、')) : ''}</div>` : ''}</div></article>`).join('') : '<div class="error-state">這個月份還沒有可整理的記憶。</div>'}</div></section>
+                <section class="section"><div class="section-heading"><h2>寫給未來的自己</h2><span>Personal note</span></div><div class="editor"><label for="summaryInput">我的月摘要</label><textarea id="summaryInput" maxlength="500"></textarea><div class="editor-row"><span class="saved-note" id="summarySaved"></span><button class="save-button" data-save="summary" type="button">保存摘要</button></div><label for="noteInput">留一句話</label><textarea id="noteInput" maxlength="1000" placeholder="下個月回來時，想對現在的自己說什麼？"></textarea><div class="editor-row"><span class="saved-note" id="noteSaved"></span><button class="save-button" data-save="note" type="button">保存給未來的自己</button></div></div></section>
+                <section class="section"><div class="section-heading"><h2>歷史月份</h2><span>Keep looking back</span></div><div class="history">${history.map(key => `<button type="button" class="history-month${key === selectedMonth ? ' active' : ''}" data-month="${escapeHtml(key)}">${escapeHtml(monthLabel(key))}</button>`).join('')}</div></section>`;
+            document.getElementById('summaryInput').value = localStorage.getItem(localKey('summary')) || generatedSummary;
+            document.getElementById('noteInput').value = localStorage.getItem(localKey('note')) || '';
+            root.querySelectorAll('.timeline-photo').forEach(image => image.addEventListener('click', () => showPhoto(image.dataset.photoSrc)));
+            root.querySelectorAll('[data-month]').forEach(button => button.addEventListener('click', () => { selectedMonth = button.dataset.month; render(); }));
+            root.querySelectorAll('[data-save]').forEach(button => button.addEventListener('click', () => saveEditor(button.dataset.save)));
+        }
+
+        document.getElementById('backButton').addEventListener('click', closePage);
+        document.getElementById('printButton').addEventListener('click', () => window.print());
+        document.getElementById('closePhotoButton').addEventListener('click', hidePhoto);
+        photoViewer.addEventListener('click', event => { if (event.target === photoViewer) hidePhoto(); });
+        document.addEventListener('keydown', event => { if (event.key === 'Escape') { hidePhoto(); closePage(); } });
+
+        async function init() {
+            try {
+                await window.FoodiemoSessionReady;
+                const response = await fetch(`${API_BASE_URL}/get_memories?scope=memories`);
+                if (!response.ok) throw new Error('月回顧資料讀取失敗');
+                const result = await response.json();
+                records = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
+                render();
+            } catch (error) {
+                root.innerHTML = `<div class="error-state">${escapeHtml(error.message || '月回顧資料讀取失敗')}</div>`;
+            } finally {
+                window.signalFoodiemoFeatureReady?.();
+            }
+        }
+        init();
+    </script>
+</body>
+</html>

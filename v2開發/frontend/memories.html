@@ -211,6 +211,7 @@
 
         let db;
         let savedMemories = {};
+        let memoryRecords = [];
         let displayDate = new Date();
         let storyList = [], currentIndex = 0, storyTimer;
         let startY = 0, startX = 0, currentY = 0, isDragging = false;
@@ -221,6 +222,19 @@
         const taggedMemoryStyle = document.createElement('style');
         taggedMemoryStyle.textContent = '.story-menu-btn{position:absolute;top:60px;right:78px;z-index:2147483647;width:40px;height:40px;border:1px solid rgba(255,255,255,.3);border-radius:50%;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.4);color:#fff;backdrop-filter:blur(5px);cursor:pointer}.story-menu-btn:active{transform:scale(.92)}.story-menu-btn svg{width:22px;height:22px;fill:currentColor}.story-menu{position:absolute;top:108px;right:24px;z-index:2147483647;display:flex;flex-direction:column;min-width:148px;overflow:hidden;border:1px solid rgba(255,255,255,.2);border-radius:15px;background:rgba(45,35,30,.92);box-shadow:0 10px 28px rgba(0,0,0,.35);opacity:0;transform:translateY(-6px) scale(.94);transform-origin:top right;pointer-events:none;transition:opacity .18s ease,transform .18s ease}.story-menu.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}.story-menu button{padding:12px 16px;border:0;border-bottom:1px solid rgba(255,255,255,.12);background:transparent;color:#fff;text-align:left;font-size:14px;cursor:pointer}.story-menu button:last-child{border-bottom:0}.story-menu button:active{background:rgba(255,255,255,.14)}';
         document.head.appendChild(taggedMemoryStyle);
+
+        const monthlyRecapStyle = document.createElement('style');
+        monthlyRecapStyle.textContent = '.monthly-recap-card{width:100%;max-width:350px;min-height:190px;margin:0 auto 18px;border-radius:28px;overflow:hidden;position:relative;color:#fff;background:#9c7c66;box-shadow:0 12px 28px rgba(96,73,57,.16)}.monthly-recap-card::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(47,33,26,.08),rgba(47,33,26,.76))}.monthly-recap-card .recap-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.monthly-recap-card .recap-copy{position:relative;z-index:1;min-height:190px;padding:22px;display:flex;flex-direction:column;justify-content:flex-end}.monthly-recap-card .recap-kicker{font-size:10px;letter-spacing:.16em;font-weight:800;opacity:.82}.monthly-recap-card h2{margin:4px 0 5px;font-size:25px;line-height:1.05}.monthly-recap-card p{max-width:260px;font-size:13px;line-height:1.45;opacity:.92}.monthly-recap-card .recap-stats{display:flex;gap:12px;margin-top:12px;font-size:11px;opacity:.9}.monthly-recap-card button{align-self:flex-start;margin-top:14px;border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:9px 14px;background:rgba(255,255,255,.16);color:#fff;font-weight:700;font-size:12px;cursor:pointer;backdrop-filter:blur(8px)}.monthly-recap-card.empty{background:linear-gradient(135deg,#b18b72,#8c735d)}';
+        document.head.appendChild(monthlyRecapStyle);
+
+        const monthlyRecapHost = document.createElement('section');
+        monthlyRecapHost.id = 'monthlyRecapHost';
+        monthlyRecapHost.setAttribute('aria-label', '月回顧');
+        document.querySelector('.calendar-header')?.before(monthlyRecapHost);
+        monthlyRecapHost.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-monthly-recap]');
+            if (button) openMonthlyRecap(button.dataset.monthlyRecap);
+        });
 
         // --- 2. 強力攔截左右滑動 (防止 PWA 或行動裝置側滑返回) ---
         window.addEventListener('touchstart', (e) => {
@@ -255,13 +269,42 @@
             }
         };
 
-        async function loadDataFromDB() {
-            const myEmail = localStorage.getItem('myProfileEmail');
+        function monthKeyForDate(value) {
+            return String(value || '').slice(0, 7);
+        }
+
+        function monthLabelForKey(key) {
+            const [year, month] = String(key || '').split('-').map(Number);
+            if (!year || !month) return '本月';
+            return `${monthNames[month - 1]} ${year}`;
+        }
+
+        function openMonthlyRecap(monthKey) {
+            const url = `monthly-recap.html?month=${encodeURIComponent(monthKey || monthKeyForDate(displayDate.toISOString()))}`;
+            if (window.top !== window) window.top.postMessage({type:'openFeature', url}, '*');
+            else window.location.href = url;
+        }
+
+        function renderMonthlyRecap() {
+            if (!monthlyRecapHost) return;
+            const monthKey = `${displayDate.getFullYear()}-${String(displayDate.getMonth() + 1).padStart(2, '0')}`;
+            const records = memoryRecords.filter(record => monthKeyForDate(record.date || record.timestamp) === monthKey);
+            const photos = records.flatMap(record => Array.isArray(record.imageUrls) ? record.imageUrls : (record.url ? [record.url] : []));
+            const places = records.map(record => String(record.location || '').trim()).filter(Boolean);
+            const image = photos[0] || 'IMG_1940.jpg';
+            const label = monthLabelForKey(monthKey);
+            const summary = records.length ? `${label}，你留下了 ${records.length} 段值得記住的片段。` : `${label} 還沒有新的記憶，等下一個故事發生。`;
+            monthlyRecapHost.innerHTML = `<article class="monthly-recap-card${records.length ? '' : ' empty'}"><img class="recap-cover" src="${escapeHtml(image)}" alt="${escapeHtml(label)}" onerror="this.src='IMG_1940.jpg'"><div class="recap-copy"><span class="recap-kicker">MONTHLY RECAP</span><h2>${escapeHtml(label)}</h2><p>${escapeHtml(summary)}</p><div class="recap-stats"><span>${records.length} 段記憶</span><span>${photos.length} 張照片</span><span>${new Set(places).size} 個地點</span></div><button type="button" data-monthly-recap="${escapeHtml(monthKey)}">查看月回顧 <span aria-hidden="true">→</span></button></div></article>`;
+        }
+
+        async function loadDataFromDB() {            const myEmail = localStorage.getItem('myProfileEmail');
             
             // 即使沒有 Email，也要先畫出空白日曆
 
             if (!myEmail) {
                 console.warn("未找到 Email，僅顯示空白日曆");
+                memoryRecords = [];
+                renderMonthlyRecap();
                 return;
             }
 
@@ -277,6 +320,7 @@
                     memoriesArray = result.data;
                 }
 
+                memoryRecords = memoriesArray;
                 savedMemories = {};
                 if (memoriesArray.length > 0) { // 清空舊資料
                     
@@ -310,8 +354,10 @@
                     
 
                     renderCalendar(); // 重新渲染有照片的日曆
+                    renderMonthlyRecap();
                 } else {
                     renderCalendar();
+                    renderMonthlyRecap();
                 }
                 }, {scope: 'memories'});
             } catch (e) { 
@@ -390,6 +436,7 @@
             displayDate.setMonth(displayDate.getMonth() + step);
             FoodiemoViewCache.write("month",displayDate.toISOString());
             renderCalendar();
+            renderMonthlyRecap();
         }
 
         function resetToCurrentMonth() {
