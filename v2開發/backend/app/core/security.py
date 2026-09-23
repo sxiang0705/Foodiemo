@@ -41,7 +41,7 @@ def check_email(user,email):
 def user_payload(c,user):
     premium=c.execute(text("SELECT EXISTS(SELECT 1 FROM public.memberships WHERE user_id=:u AND status='active' AND (end_date IS NULL OR end_date>now()))"),
         {"u":user["user_id"]}).scalar()
-    return dict(id=str(user["user_id"]),email=user["email"],name=user["user_name"] or "",
+    return dict(id=str(user["user_id"]),email=user["email"],username=user["username"],name=user["user_name"] or "",
                 is_premium=premium,avatar_url="/api/avatars/"+str(user["user_id"]) if user["avatar_path"] else None)
 def set_session(response,token,secure):
     response.set_cookie(COOKIE,token,httponly=True,secure=secure,samesite="lax",max_age=604800,path="/")

@@ -31,7 +31,7 @@ server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=8004,log_level='e
 thread=threading.Thread(target=server.run,daemon=True)
 try:
     with TestClient(app) as client:
-        r=client.post('/api/register',json=dict(email=emails[1],name='Browser Friend',password='Friend-password-1'));assert r.status_code==200
+        r=client.post('/api/register',json=dict(email=emails[1],name='Browser Friend',username='browser_friend',password='Friend-password-1'));assert r.status_code==200
         r=client.post('/api/verify_email_code',json=dict(email=emails[1],purpose='signup',code=mail.messages[-1]['code']));assert r.status_code==200
     with engine.begin() as c:
         assert_test_connection(c,settings)

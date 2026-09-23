@@ -13,14 +13,16 @@ const otp=purpose=>JSON.parse(fs.readFileSync(process.env.V2_BROWSER_MAILBOX,'ut
  try{
  await page.goto(BASE+'/signup.html');
  await page.fill('#nameInput','<b>Browser User</b>');await page.locator('#dobInput').focus();await page.fill('#dobInput','2000-01-01');
- await page.fill('#emailInput',EMAIL);await page.fill('#phoneInput','0912345678');await page.fill('#passwordInput','Browser-password-1');
+ await page.fill('#accountInput','browser_user');await page.fill('#emailInput',EMAIL);await page.fill('#phoneInput','0912345678');await page.fill('#passwordInput','Browser-password-1');
  await page.click('#signupBtn');await page.waitForURL('**/otp_verify.html?**');
  await page.fill('#real-input',otp('signup'));await page.click('#verifyBtn');await page.waitForURL('**/onboarding.html');
  pass('原註冊表單 → OTP → 六題偏好');
  for(let i=0;i<6;i++){await page.click('#optionLeft');await page.click('#nextBtn');}
  await page.waitForURL('**/index.html?tab=home');
- const me=await (await context.request.get(BASE+'/api/me')).json();assert.equal(Object.keys(me.preferences.answers).length,6);pass('六題偏好已保存 PostgreSQL');
- await page.goto(BASE+'/friends.html');await page.fill('#friendSearch','Browser Friend');await page.click('#searchBtn');await page.locator('#searchResults [data-user-id]').waitFor();await page.locator('#searchResults [data-user-id]').click();await page.waitForFunction(()=>document.querySelector('#searchResults [data-user-id]')?.textContent.includes('已送出'));pass('好友頁搜尋帳號並送出請求');
+ const me=await (await context.request.get(BASE+'/api/me')).json();assert.equal(Object.keys(me.preferences.answers).length,6);assert.equal(me.username,'browser_user');pass('六題偏好與帳號已保存 PostgreSQL');
+ await context.request.post(BASE+'/api/logout');await page.goto(BASE+'/login.html');await page.fill('#emailInput','browser_user');await page.fill('#passwordInput','Browser-password-1');await page.click('#loginBtn');await page.waitForURL('**/index.html');const accountLoginCheck=await page.evaluate(async()=>({username:localStorage.getItem('myProfileUsername'),status:(await fetch('/api/me')).status}));assert.equal(accountLoginCheck.username,'browser_user');assert.equal(accountLoginCheck.status,200);pass('登入頁接受使用者帳號');
+ await page.goto(BASE+'/profile.html');await page.waitForFunction(()=>document.querySelector('#handle-field')?.textContent.trim()==='browser_user',{timeout:10000});await page.locator('#handle-field').fill('browser.ui_account');await page.locator('#handle-field').press('Tab');await page.waitForFunction(()=>localStorage.getItem('myProfileUsername')==='browser.ui_account');assert.equal((await (await context.request.get(BASE+'/api/me')).json()).username,'browser.ui_account');pass('個人頁修改帳號並保存至 PostgreSQL');
+ await page.goto(BASE+'/friends.html');await page.fill('#friendSearch','browser_friend');await page.click('#searchBtn');await page.locator('#searchResults [data-user-id]').waitFor();await page.locator('#searchResults [data-user-id]').click();await page.waitForFunction(()=>document.querySelector('#searchResults [data-user-id]')?.textContent.includes('已送出'));pass('好友頁搜尋帳號並送出請求');
  await context.request.post(BASE+'/api/logout');await context.request.post(BASE+'/api/login',{data:{email:FRIEND_EMAIL,password:'Friend-password-1'}});await page.goto(BASE+'/message.html');await page.locator('#friendRequestNotifications [data-action=approve]').waitFor();await page.locator('#friendRequestNotifications [data-action=approve]').click();await page.waitForFunction(()=>!document.querySelector('#friendRequestNotifications [data-action=approve]'));pass('最新消息批准好友請求');
  await context.request.post(BASE+'/api/logout');await context.request.post(BASE+'/api/login',{data:{email:EMAIL,password:'Browser-password-1'}});await page.goto(BASE+'/friends.html');await page.locator('#friendList').getByText('Browser Friend').waitFor();pass('好友列表顯示已建立關係');
  await page.locator('#friendList [data-chat-id]').click();await page.waitForURL('**/chat.html?friend_id=*');await page.fill('#messageInput','嗨，這是聊天室測試');await page.click('#sendButton');await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('嗨，這是聊天室測試'));pass('好友列表點擊好友進入聊天室並送出訊息');
@@ -86,7 +88,7 @@ const otp=purpose=>JSON.parse(fs.readFileSync(process.env.V2_BROWSER_MAILBOX,'ut
  await page.goto(BASE+'/login.html');await context.request.post(BASE+'/api/logout');await page.goto(BASE+'/forgot-password.html');await page.fill('#emailInput',EMAIL);await page.click('#submitBtn');await page.waitForURL('**/otp_verify.html?**');
  await page.fill('#real-input',otp('reset_password'));await page.click('#verifyBtn');await page.waitForURL('**/reset_password.html?**');
  await page.fill('#newPass','Changed-password-2');await page.fill('#confirmPass','Changed-password-2');await page.click('#submitBtn');await page.waitForURL('**/login.html**');
- await page.fill('#emailInput',EMAIL);await page.fill('#passwordInput','Changed-password-2');await page.click('#loginBtn');await page.waitForURL('**/index.html');pass('忘記密碼 → OTP → 重設 → 新密碼登入');
+ await page.fill('#emailInput','browser.ui_account');await page.fill('#passwordInput','Changed-password-2');await page.click('#loginBtn');await page.waitForURL('**/index.html');pass('忘記密碼 → OTP → 重設 → 新密碼登入');
  assert.deepEqual(errors,[]);pass('瀏覽器無 JavaScript 例外');
  fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync('test-results/features.json',JSON.stringify({checks},null,2));
  }catch(e){console.error('Browser errors:',errors);console.error('Page:',await page.locator('body').innerText());throw e;}finally{await browser.close();}

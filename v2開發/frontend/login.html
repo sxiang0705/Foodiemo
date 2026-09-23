@@ -152,7 +152,7 @@
         <div class="form-group">
             <div class="input-wrapper" id="emailWrapper">
                 <i class='bx bx-envelope'></i>
-                <input type="email" id="emailInput" placeholder="G-mail" autocomplete="email">
+                <input type="text" id="emailInput" placeholder="帳號或 Email" autocomplete="username" autocapitalize="none" spellcheck="false">
             </div>
 
             <div class="input-wrapper" id="passwordWrapper">
@@ -204,6 +204,7 @@
             await loginCacheReset;
             await clearLocalAppData();
             localStorage.setItem('myProfileEmail', data.email);
+            localStorage.setItem('myProfileUsername', data.username || '');
             localStorage.setItem('myProfileName', data.name);
             localStorage.setItem('isPremiumUser', data.is_premium.toString());
             if (data.avatar_url) {
@@ -259,17 +260,20 @@
                 const response = await fetch(`${API_BASE_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: emailValue, password: passwordValue })
+                    body: JSON.stringify({ identifier: emailValue, password: passwordValue })
                 });
                 const data = await response.json();
 
                 if (!response.ok) {
                     if (response.status === 403 && data.detail && data.detail.includes('驗證')) {
-                        localStorage.setItem('temp_signup_email', emailValue.toLowerCase());
-                        localStorage.setItem('temp_verification_purpose', 'signup');
-                        alert('這個帳號還沒完成信箱驗證，系統會帶你去輸入驗證碼。');
-                        window.top.location.href = `otp_verify.html?email=${encodeURIComponent(emailValue)}&purpose=signup`;
-                        return;
+                        if (emailValue.includes('@')) {
+                            localStorage.setItem('temp_signup_email', emailValue.toLowerCase());
+                            localStorage.setItem('temp_verification_purpose', 'signup');
+                            alert('這個帳號還沒完成信箱驗證，系統會帶你去輸入驗證碼。');
+                            window.top.location.href = `otp_verify.html?email=${encodeURIComponent(emailValue)}&purpose=signup`;
+                            return;
+                        }
+                        throw new Error('帳號尚未完成 Email 驗證，請使用註冊 Email 前往驗證。');
                     }
                     throw new Error(data.detail || 'Login failed.');
                 }

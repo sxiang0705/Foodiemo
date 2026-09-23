@@ -143,6 +143,11 @@
                 <input type="text" id="nameInput" placeholder="Name" autocomplete="name">
             </div>
 
+            <div class="input-wrapper" id="accountWrapper">
+                <i class='bx bx-at'></i>
+                <input type="text" id="accountInput" placeholder="帳號（用來搜尋與登入）" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="30">
+            </div>
+
             <div class="input-wrapper" id="dobWrapper">
                 <i class='bx bx-calendar'></i>
                 <input type="text" id="dobInput" placeholder="Birthday" onfocus="(this.type='date')" onblur="if(!this.value)this.type='text'">
@@ -184,6 +189,7 @@
         const signupBtn = document.getElementById('signupBtn');
         const inputs = {
             name: { input: document.getElementById('nameInput'), wrapper: document.getElementById('nameWrapper') },
+            username: { input: document.getElementById('accountInput'), wrapper: document.getElementById('accountWrapper') },
             dob: { input: document.getElementById('dobInput'), wrapper: document.getElementById('dobWrapper') },
             email: { input: document.getElementById('emailInput'), wrapper: document.getElementById('emailWrapper') },
             phone: { input: document.getElementById('phoneInput'), wrapper: document.getElementById('phoneWrapper') },
@@ -232,6 +238,7 @@
 
             const userData = {
                 name: inputs.name.input.value.trim(),
+                username: inputs.username.input.value.trim().toLowerCase(),
                 dob: inputs.dob.input.value.trim(),
                 email: inputs.email.input.value.trim(),
                 phone: inputs.phone.input.value.trim(),
@@ -293,6 +300,7 @@
 
                 await clearLocalAppData();
                 localStorage.setItem('myProfileEmail', data.email);
+                localStorage.setItem('myProfileUsername', data.username || '');
                 localStorage.setItem('myProfileName', data.name);
                 localStorage.setItem('isPremiumUser', data.is_premium.toString());
                 if (data.avatar_url) {

@@ -22,7 +22,7 @@ def accessible(c,request,id):
     if not row: raise HTTPException(404,"找不到紀錄")
     return user,row
 def post(c,row,viewer_id=None):
-    author=c.execute(text("SELECT user_name,avatar_path,email FROM public.users WHERE user_id=:u"),{"u":row["user_id"]}).mappings().one()
+    author=c.execute(text("SELECT user_name,avatar_path FROM public.users WHERE user_id=:u"),{"u":row["user_id"]}).mappings().one()
     photos=c.execute(text("SELECT photo_id,storage_path FROM public.photos WHERE record_id=:r ORDER BY sort_order,photo_id"),{"r":row["record_id"]}).mappings().all()
     urls=["/api/photos/"+str(p["photo_id"]) for p in photos]
     mentions=c.execute(text("SELECT u.user_id,u.user_name FROM public.record_mentions m JOIN public.users u USING(user_id) WHERE record_id=:r ORDER BY u.user_id"),{"r":row["record_id"]}).mappings().all()
@@ -35,7 +35,7 @@ def post(c,row,viewer_id=None):
         timestamp=int(row["create_time"].timestamp()*1000),date=row["create_time"].astimezone(TAIPEI).date().isoformat(),
         caption=row["text"] or "",location=row["location_text"] or "",restaurant_id=str(row["restaurant_id"]) if row["restaurant_id"] else None,
         mentions=[dict(id=str(m["user_id"]),name=m["user_name"]) for m in mentions],
-        username=author["user_name"],email=author["email"],userAvatar="/api/avatars/"+str(row["user_id"]) if author["avatar_path"] else None,
+        username=author["user_name"],userAvatar="/api/avatars/"+str(row["user_id"]) if author["avatar_path"] else None,
         likes=likes,isLiked=is_liked,commentCount=len(comments),isOwner=is_owner,isTagged=is_tagged,canEdit=is_owner,
         comments=[dict(user=x["user_name"],text=x["text"],avatar="/api/avatars/"+str(x["user_id"]) if x["avatar_path"] else None,timestamp=x["create_time"].isoformat()) for x in comments])
 @router.get("/get_memories")
@@ -195,15 +195,15 @@ def members(request:Request,q:str=Query("",max_length=80),c=Depends(connection))
     q=q.strip()
     if not q:
         # The tag-friend picker opens with the user's accepted friends ready.
-        rows=c.execute(text("""SELECT DISTINCT u.user_id,u.user_name
+        rows=c.execute(text("""SELECT DISTINCT u.user_id,u.user_name,u.username
             FROM public.friend_requests fr
             JOIN public.users u ON u.user_id=CASE WHEN fr.requester_id=:u THEN fr.addressee_id ELSE fr.requester_id END
             WHERE fr.status='accepted' AND (fr.requester_id=:u OR fr.addressee_id=:u)
             ORDER BY u.user_name,u.user_id LIMIT 30"""),{"u":user["user_id"]}).mappings()
     else:
         query=q.replace("/","//").replace("%","/%").replace("_","/_")
-        rows=c.execute(text("SELECT user_id,user_name FROM public.users WHERE email_verified AND user_id<>:u AND user_name ILIKE :q ESCAPE '/' ORDER BY user_name,user_id LIMIT 20"),{"q":"%"+query+"%","u":user["user_id"]}).mappings()
-    return {"items":[dict(id=str(r["user_id"]),name=r["user_name"]) for r in rows]}
+        rows=c.execute(text("SELECT user_id,user_name,username FROM public.users WHERE email_verified AND user_id<>:u AND (username ILIKE :q ESCAPE '/' OR user_name ILIKE :q ESCAPE '/') ORDER BY username,user_id LIMIT 20"),{"q":"%"+query+"%","u":user["user_id"]}).mappings()
+    return {"items":[dict(id=str(r["user_id"]),name=r["user_name"],username=r["username"]) for r in rows]}
 class Comment(BaseModel):
     photo_id:str
     user_email:str=""

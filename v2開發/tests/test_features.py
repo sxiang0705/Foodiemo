@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from io import BytesIO
 from uuid import uuid4
-import os
+import os,re
 import pytest
 from PIL import Image
 from sqlalchemy import text
@@ -38,8 +38,11 @@ def setup():
                 root.rmdir()
     engine.dispose()
 
-def register(client,mail,email='feature@example.test',name='測試會員'):
-    r=client.post('/api/register',json=dict(email=email,name=name,password='Correct-password-1'))
+def register(client,mail,email='feature@example.test',name='測試會員',username=None):
+    if username is None:
+        username=re.sub(r'[^a-z0-9._]','_',email.split('@',1)[0].lower()).strip('._')
+        username=(username if len(username)>=3 else 'user_'+username)[:30].rstrip('.')
+    r=client.post('/api/register',json=dict(email=email,name=name,username=username,password='Correct-password-1'))
     assert r.status_code==200,r.text
     code=mail.messages[-1]['code']
     r=client.post('/api/verify_email_code',json=dict(email=email,purpose='signup',code=code))
@@ -52,7 +55,8 @@ def jpeg(color='red'):
 def test_auth_reset_revokes_sessions_and_token(setup):
     c,mail,db,app=setup
     user=register(c,mail)
-    assert c.get('/api/me').json()['id']==user['id']
+    me=c.get('/api/me').json()
+    assert me['id']==user['id'] and me['username']==user['username']
     old_cookie=c.cookies.get('foodiemo_session')
     r=c.post('/api/send_email_code',json=dict(email=user['email'],purpose='reset_password'))
     assert r.status_code==200
@@ -69,13 +73,22 @@ def test_auth_reset_revokes_sessions_and_token(setup):
     assert c.post('/api/login',json=dict(email=user['email'],password='Correct-password-1')).status_code==401
     assert c.post('/api/login',json=dict(email=user['email'],password='New-password-2')).status_code==200
     assert c.post('/api/logout').status_code==200
+    assert c.post('/api/login',json=dict(identifier=user['username'],password='New-password-2')).status_code==200
+    changed=c.put('/api/me/username',json={'username':'renamed.foodie'})
+    assert changed.status_code==200 and changed.json()['username']=='renamed.foodie'
+    assert c.get('/api/me').json()['username']=='renamed.foodie'
+    assert c.post('/api/register',json=dict(email='taken@example.test',name='重複帳號',username='RENAMED.FOODIE',password='Correct-password-1')).status_code==409
+    assert c.put('/api/me/username',json={'username':'bad-name'}).status_code==422
+    assert c.post('/api/logout').status_code==200
+    assert c.post('/api/login',json=dict(identifier='renamed.foodie',password='New-password-2')).status_code==200
+    assert c.post('/api/logout').status_code==200
     assert c.get('/api/me').status_code==401
 
 def test_mail_failure_rolls_back_registration(setup):
     c,mail,db,app=setup
     from dataclasses import replace
     app.state.mailer=SMTPMailer(replace(Settings.from_env(),smtp_host="",smtp_from=""))
-    r=c.post('/api/register',json=dict(email='no-mail@example.test',name='No Mail',password='password-123'))
+    r=c.post('/api/register',json=dict(email='no-mail@example.test',name='No Mail',username='no_mail',password='password-123'))
     assert r.status_code==503
     assert db.execute(text("SELECT count(*) FROM users WHERE email='no-mail@example.test'")).scalar()==0
 
@@ -99,7 +112,9 @@ def test_photos_order_mentions_ownership_delete(setup):
     c.cookies.clear();user=register(c,mail)
     db.execute(text('INSERT INTO restaurant_rows (restaurant_id,"googleMaps_id",title) VALUES (981234,\'feature-test\',\'測試地點\')'))
     assert c.get('/api/locations?q=測試').json()['items'][0]['id']=='981234'
-    assert c.get('/api/members?q=好友').json()['items']==[dict(id=other['id'],name='好友測試')]
+    tagged_people=c.get('/api/members?q=好友').json()['items']
+    assert tagged_people==[dict(id=other['id'],name='好友測試',username=other['username'])]
+    assert c.get('/api/members?q=other').json()['items'][0]['username']==other['username']
     data=dict(restaurant_id='981234',mention_ids='["'+other['id']+'"]')
     r=c.post('/api/upload_memory_post',data=data,files=[('files',('a.jpg',jpeg(),'image/jpeg')),('files',('b.jpg',jpeg('blue'),'image/jpeg'))])
     assert r.status_code==200,r.text
@@ -160,6 +175,7 @@ def test_capture_message_creates_comment_and_like_persists(setup):
     assert post['commentCount']==1
     assert post['location']=='照片位置 25.03300, 121.56540'
     assert post['likes']==0 and post['isLiked'] is False
+    assert 'email' not in post
     assert c.post('/api/posts/'+record+'/like').json()=={'status':'success','liked':True}
     post=c.get('/api/get_post/'+record).json()
     assert post['likes']==1 and post['isLiked'] is True
@@ -169,19 +185,21 @@ def test_capture_message_creates_comment_and_like_persists(setup):
     assert c.delete('/api/posts/'+record+'/like').json()=={'status':'success','liked':False}
     post=c.get('/api/get_post/'+record).json()
     assert post['likes']==0 and post['isLiked'] is False
+    assert 'email' not in post
 
 
 def test_friend_search_request_approve_and_list(setup):
     c,mail,db,app=setup
     friend=register(c,mail,'friend@example.test','好友會員')
     c.cookies.clear();me=register(c,mail,'member@example.test','目前會員')
-    result=c.get('/api/friends/search?q=好友').json()['items']
-    assert result[0]['id']==friend['id'] and result[0]['relationship']=='none'
+    result=c.get('/api/friends/search?q=friend').json()['items']
+    assert result[0]['id']==friend['id'] and result[0]['username']==friend['username'] and result[0]['relationship']=='none'
+    assert 'email' not in result[0]
     request_id=c.post('/api/friends/requests',json={'user_id':int(friend['id'])}).json()['request_id']
-    assert c.get('/api/friends/search?q=好友').json()['items'][0]['relationship']=='pending_outgoing'
+    assert c.get('/api/friends/search?q=friend').json()['items'][0]['relationship']=='pending_outgoing'
     c.cookies.clear();assert c.post('/api/login',json={'email':friend['email'],'password':'Correct-password-1'}).status_code==200
     incoming=c.get('/api/friends').json()['incoming']
-    assert incoming[0]['request_id']==request_id and incoming[0]['id']==me['id']
+    assert incoming[0]['request_id']==request_id and incoming[0]['id']==me['id'] and 'email' not in incoming[0]
     assert c.post('/api/friends/requests/'+request_id+'/approve').status_code==200
     assert c.get('/api/friends').json()['friends'][0]['id']==me['id']
     c.cookies.clear();assert c.post('/api/login',json={'email':me['email'],'password':'Correct-password-1'}).status_code==200
@@ -199,14 +217,15 @@ def test_friend_chat_requires_accepted_friend_and_persists_messages(setup):
     assert c.post('/api/chats/'+me['id']+'/messages',json={'text':'你好，今天吃什麼？'}).status_code==200
     c.cookies.clear();assert c.post('/api/login',json={'email':me['email'],'password':'Correct-password-1'}).status_code==200
     result=c.get('/api/chats/'+friend['id']+'/messages').json()
-    assert result['friend']['id']==friend['id'] and result['messages'][0]['text']=='你好，今天吃什麼？'
+    assert result['friend']['id']==friend['id'] and result['friend']['username']==friend['username'] and 'email' not in result['friend']
+    assert result['messages'][0]['text']=='你好，今天吃什麼？'
     sent=c.post('/api/chats/'+friend['id']+'/messages',json={'text':'我想吃拉麵'}).json()['message']
     assert sent['sender_id']==me['id']
     assert c.post('/api/chats/'+friend['id']+'/messages',json={'text':'   '}).status_code==422
 def test_otp_attempt_limit_expiry_and_resend(setup):
     c,mail,db,app=setup
     email='otp-limit@example.test'
-    assert c.post('/api/register',json=dict(email=email,name='OTP Test',password='Correct-password-1')).status_code==200
+    assert c.post('/api/register',json=dict(email=email,name='OTP Test',username='otp_test',password='Correct-password-1')).status_code==200
     correct=mail.messages[-1]['code'];wrong='1111' if correct!='1111' else '2222'
     assert c.post('/api/send_email_code',json=dict(email=email,purpose='signup')).status_code==429
     for _ in range(5):assert c.post('/api/verify_email_code',json=dict(email=email,purpose='signup',code=wrong)).status_code==400

@@ -15,7 +15,7 @@ def _person(row):
     return {
         "id": str(row["user_id"]),
         "name": row["user_name"] or "",
-        "email": row["email"],
+        "username": row["username"],
         "avatar_url": "/api/avatars/" + str(row["user_id"]) if row["avatar_path"] else None,
     }
 
@@ -23,7 +23,7 @@ def _person(row):
 def _friend(c, me: int, other: int):
     row = c.execute(
         text(
-            """SELECT u.user_id,u.user_name,u.email,u.avatar_path
+            """SELECT u.user_id,u.user_name,u.username,u.avatar_path
                FROM public.users u
                WHERE u.user_id=:other AND u.email_verified
                  AND EXISTS (

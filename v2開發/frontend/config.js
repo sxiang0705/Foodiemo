@@ -4,7 +4,7 @@ function resolveApiBaseUrl() {
     return window.location.origin + "/api";
 }
 
-const FOODIEMO_BUILD = Object.freeze({version: "v2.2.0", updatedAt: "2026-09-20T16:50:39+08:00"});
+const FOODIEMO_BUILD = Object.freeze({version: "v2.2.1", updatedAt: "2026-09-23T17:30:13+08:00"});
 window.FOODIEMO_BUILD = FOODIEMO_BUILD;
 
 const DB_CONFIG = {
@@ -233,6 +233,7 @@ window.refreshFoodiemoSession = async function(redirect = true) {
             FoodiemoViewCache.clear();
             localStorage.removeItem('myProfileEmail');
             localStorage.removeItem('myProfileName');
+            localStorage.removeItem('myProfileUsername');
             localStorage.removeItem('isPremiumUser');
             clearStoredAvatarUrl();
             if (redirect) window.top.location.replace('login.html');
@@ -243,6 +244,7 @@ window.refreshFoodiemoSession = async function(redirect = true) {
         if(localStorage.getItem('myProfileEmail')!==user.email)FoodiemoViewCache.clear();
         localStorage.setItem('myProfileEmail',user.email);
         localStorage.setItem('myProfileName',user.name);
+        localStorage.setItem('myProfileUsername',user.username || '');
         localStorage.setItem('isPremiumUser',String(user.is_premium));
         setStoredAvatarUrl(user.avatar_url);
         return user;

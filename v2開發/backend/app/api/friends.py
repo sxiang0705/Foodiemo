@@ -12,7 +12,7 @@ def _avatar(user_id, avatar_path):
     return "/api/avatars/"+str(user_id) if avatar_path else None
 
 def _person(row):
-    return {"id":str(row["user_id"]),"name":row["user_name"] or "","email":row["email"],"avatar_url":_avatar(row["user_id"],row["avatar_path"])}
+    return {"id":str(row["user_id"]),"name":row["user_name"] or "","username":row["username"],"avatar_url":_avatar(row["user_id"],row["avatar_path"])}
 
 def _relationship(c,me,other):
     if c.execute(text("""SELECT 1 FROM public.friend_requests
@@ -29,16 +29,16 @@ def _relationship(c,me,other):
 @router.get("/friends")
 def friends(request:Request,c=Depends(connection)):
     user=current_user(c,request);me=user["user_id"]
-    accepted=c.execute(text("""SELECT u.user_id,u.user_name,u.email,u.avatar_path,fr.responded_at
+    accepted=c.execute(text("""SELECT u.user_id,u.user_name,u.username,u.avatar_path,fr.responded_at
         FROM public.friend_requests fr
         JOIN public.users u ON u.user_id=CASE WHEN fr.requester_id=:me THEN fr.addressee_id ELSE fr.requester_id END
         WHERE fr.status='accepted' AND (fr.requester_id=:me OR fr.addressee_id=:me)
         ORDER BY u.user_name,u.user_id"""),{"me":me}).mappings().all()
-    incoming=c.execute(text("""SELECT fr.request_id,fr.created_at,u.user_id,u.user_name,u.email,u.avatar_path
+    incoming=c.execute(text("""SELECT fr.request_id,fr.created_at,u.user_id,u.user_name,u.username,u.avatar_path
         FROM public.friend_requests fr JOIN public.users u ON u.user_id=fr.requester_id
         WHERE fr.addressee_id=:me AND fr.status='pending'
         ORDER BY fr.created_at DESC,fr.request_id DESC"""),{"me":me}).mappings().all()
-    outgoing=c.execute(text("""SELECT fr.request_id,fr.created_at,u.user_id,u.user_name,u.email,u.avatar_path
+    outgoing=c.execute(text("""SELECT fr.request_id,fr.created_at,u.user_id,u.user_name,u.username,u.avatar_path
         FROM public.friend_requests fr JOIN public.users u ON u.user_id=fr.addressee_id
         WHERE fr.requester_id=:me AND fr.status='pending'
         ORDER BY fr.created_at DESC,fr.request_id DESC"""),{"me":me}).mappings().all()
@@ -51,10 +51,9 @@ def friends(request:Request,c=Depends(connection)):
 @router.get("/friends/search")
 def search_friends(request:Request,q:str=Query("",min_length=2,max_length=80),c=Depends(connection)):
     user=current_user(c,request);query=q.strip().replace("/","//").replace("%","/%").replace("_","/_")
-    rows=c.execute(text("""SELECT user_id,user_name,email,avatar_path FROM public.users
-        WHERE email_verified AND user_id<>:me
-          AND (user_name ILIKE :q ESCAPE '/' OR email ILIKE :q ESCAPE '/')
-        ORDER BY user_name,user_id LIMIT 20"""),{"me":user["user_id"],"q":"%"+query+"%"}).mappings().all()
+    rows=c.execute(text("""SELECT user_id,user_name,username,avatar_path FROM public.users
+        WHERE email_verified AND user_id<>:me AND username ILIKE :q ESCAPE '/'
+        ORDER BY username,user_id LIMIT 20"""),{"me":user["user_id"],"q":"%"+query+"%"}).mappings().all()
     return {"items":[dict(_person(row),relationship=_relationship(c,user["user_id"],row["user_id"])) for row in rows]}
 
 class FriendRequest(BaseModel):

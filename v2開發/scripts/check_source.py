@@ -29,6 +29,13 @@ def normalize_intentional_css(name, text):
             text,
             flags=re.S,
         )
+    elif name == "profile.html":
+        text = re.sub(
+            r"\s*\.handle-wrapper\s*\{[^}]*\}\s*\.handle-prefix\s*\{[^}]*\}\s*\.handle-field\s*\{[^}]*\}\s*\.handle-field:focus\s*\{[^}]*\}\s*\.handle-hint\s*\{[^}]*\}",
+            "",
+            text,
+            flags=re.S,
+        )
     return text
 
 def main():
@@ -67,7 +74,7 @@ def main():
     for p in ROOT.rglob("*"):
         if not p.is_file() or any(part in ignored for part in p.relative_to(ROOT).parts):continue
         if p.name.startswith(".env") and p.name!=".env.example":continue
-        if p.suffix in [".png",".jpg",".ico"]:continue
+        if p.suffix in [".png",".jpg",".ico"] or p.name=="foodiemo-local-root.cer":continue
         text=p.read_text(encoding="utf-8-sig")
         assert not any(s in text for s in secrets), "Local secret in source: "+str(p.relative_to(ROOT))
     print(f"PASS frozen frontend: {len(manifest)} original files; changed allowlist {sorted(CHANGED)}")

@@ -205,6 +205,7 @@
                 if (purpose === 'signup') {
                     await clearLocalAppData();
                     localStorage.setItem('myProfileEmail', data.email);
+                    localStorage.setItem('myProfileUsername', data.username || '');
                     localStorage.setItem('myProfileName', data.name);
                     localStorage.setItem('isPremiumUser', data.is_premium.toString());
                     localStorage.removeItem('temp_signup_email');

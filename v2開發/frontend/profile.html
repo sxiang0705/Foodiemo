@@ -95,6 +95,12 @@
 
         .edit-icon { color: #998A7D; opacity: 0.5; pointer-events: none; }
 
+        .handle-wrapper { display: flex; align-items: center; gap: 4px; margin: 2px 0 4px; color: #998A7D; font-size: 13px; }
+        .handle-prefix { color: #8C7B6D; font-weight: 600; }
+        .handle-field { min-width: 70px; max-width: 220px; padding: 2px 3px; border-bottom: 1px dashed transparent; color: #8C7B6D; text-align: left; }
+        .handle-field:focus { border-bottom-color: #8C7B6D; }
+        .handle-hint { font-size: 11px; color: #ad9b8f; }
+
         .email { font-size: 13px; color: #998A7D; }
         .build-info { margin-top: 10px; font-size: 11px; color: #ad9b8f; letter-spacing: .2px; }
 
@@ -159,6 +165,7 @@
             <svg class="edit-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
         </div>
         
+        <div class="handle-wrapper"><span class="handle-prefix">@</span><div class="handle-field" id="handle-field" contenteditable="true" role="textbox" aria-label="登入與搜尋帳號" spellcheck="false" onblur="saveHandle()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">載入中…</div><span class="handle-hint">帳號 · 可修改</span></div>
         <div class="email" id="email-display">Loading...</div>
         <div class="build-info" id="build-info" aria-label="版本資訊"></div>
     </div>
@@ -240,6 +247,7 @@
         // --- 2. 頁面載入邏輯 ---
         const avatarDisplay = document.getElementById('avatarDisplay');
         const usernameField = document.getElementById('username-field');
+        const handleField = document.getElementById('handle-field');
         const fileInput = document.getElementById('hiddenFileInput');
 
         window.addEventListener('load', async () => {
@@ -252,7 +260,11 @@
                 usernameField.innerText = savedName;
             }
 
-            // 2. 讀取 Email
+            // 2. 讀取可搜尋與登入的帳號
+            const savedHandle = localStorage.getItem('myProfileUsername');
+            if (savedHandle && handleField) handleField.innerText = savedHandle;
+
+            // 3. 讀取 Email
             const savedEmail = localStorage.getItem('myProfileEmail');
             const emailDiv = document.querySelector('.email'); 
             if (savedEmail && emailDiv) {
@@ -339,6 +351,28 @@
                 channel.postMessage('updated');
             } catch(error) { usernameField.innerText=previous;alert(error.message); }
             finally { savingName=false; }
+        }
+
+        let savingHandle = false;
+        async function saveHandle() {
+            if (savingHandle) return;
+            const previous = localStorage.getItem('myProfileUsername') || '';
+            const username = handleField.innerText.trim().toLowerCase();
+            if (username === previous) return;
+            savingHandle = true;
+            try {
+                const response = await fetch(API_BASE_URL + '/me/username', {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username})
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || '帳號尚未保存');
+                localStorage.setItem('myProfileUsername', data.username);
+                handleField.innerText = data.username;
+                channel.postMessage('updated');
+            } catch (error) {
+                handleField.innerText = previous;
+                alert(error.message);
+            } finally { savingHandle = false; }
         }
 
         /**

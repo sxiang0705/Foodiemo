@@ -44,21 +44,22 @@ frontend/api/client.js 透過 /static/api/client.js 載入，避免與 /api/* �
 
 | 路徑 | 方法與資料 |
 | --- | --- |
-| /api/register | POST JSON email/name/password/phone/dob；寄信成功後回 verification_required，尚不登入 |
-| /api/send_email_code | POST email/purpose（signup 或 reset_password） |
+| /api/register | POST JSON email/username/name/password/phone/dob；username 為 3–30 字元、小寫英數字、底線或句點且唯一；寄信成功後回 verification_required，尚不登入 |
+| /api/send_email_code | POST email/purpose（signup 或 reset_password）；驗證與密碼重設仍使用 Email |
 | /api/verify_email_code | POST email/purpose/code；註冊驗證建立 Cookie；重設用途回一次性 reset_token |
-| /api/login、/api/logout | POST；登入 email/password，登出撤銷當前 Token |
+| /api/login、/api/logout | POST；登入接受 identifier（帳號或 Email），相容舊 email 欄位；登出撤銷當前 Token |
+| /api/me/username | PUT JSON username；修改登入／搜尋帳號，保留穩定 user_id 與既有關係 |
 | /api/reset_password | POST reset_token/new_password；成功撤銷該帳號所有工作階段 |
-| /api/me | GET 會員身分、avatar_url、is_premium、preferences |
+| /api/me | GET 會員自己的 Email、username、姓名、avatar_url、is_premium、preferences |
 | /api/preferences | PUT version=1、answers 六題 key/value；選項需完全符合原六題 |
-| /api/get_memories、/api/get_post/{id} | GET 作者紀錄或登入者被標記的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，並回傳 `likes`、`isLiked`、`commentCount`；`/api/get_memories?scope=memories` 或 `scope=social` 會再合併目前登入會員被標記的貼文，附 `isOwner`、`isTagged`、`canEdit` 權限欄位 |
+| /api/get_memories、/api/get_post/{id} | GET 作者紀錄或登入者被標記的紀錄，保留原版 imageUrls/date/timestamp/location/comments 格式，不回傳作者 Email，並回傳 `likes`、`isLiked`、`commentCount`；`/api/get_memories?scope=memories` 或 `scope=social` 會再合併目前登入會員被標記的貼文，附 `isOwner`、`isTagged`、`canEdit` 權限欄位 |
 | /api/upload_memory_post、/api/update_post | POST multipart files、photo_order、restaurant_id、mention_ids；可附 `initial_comment`（最多 2000 字）建立第一則留言；沒有餐廳選擇時可附 `photo_location_text`（最多 200 字）保存照片 EXIF GPS 的顯示標籤；更新須 post_id |
-| /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；`/api/members` 不帶 q 時先回傳目前已接受的好友，輸入 q 時搜尋其他已驗證會員；ID 以字串傳遞 |
+| /api/locations?q=、/api/members?q= | GET 搜尋餐廳／已驗證會員；`/api/members` 不帶 q 時先回傳目前已接受的好友，輸入 q 時可依 username 或顯示名稱搜尋；不回傳 Email；ID 以字串傳遞 |
 | /api/posts/{id}/mention | DELETE 由被標記會員取消自己的標記；作者或未被標記會員不能呼叫成功 |
-| /api/friends、/api/friends/search?q= | GET 好友、好友請求與名稱／Email 搜尋結果 |
+| /api/friends、/api/friends/search?q= | GET 好友與請求；以公開 username 搜尋，回傳姓名／username／頭像／關係，不回傳 Email |
 | /api/friends/requests | POST user_id；送出好友請求，對方批准後建立關係 |
 | /api/friends/requests/{id}/approve、/reject | POST；批准或忽略收到的好友請求 |
-| /api/chats/{friend_id}/messages | GET；讀取已接受好友的聊天訊息（可用 after_id 增量輪詢）；POST JSON text；只有已接受好友可收發，訊息最多 2000 字 |
+| /api/chats/{friend_id}/messages | GET；讀取已接受好友的聊天訊息（可用 after_id 增量輪詢）；POST JSON text；只有已接受好友可收發，訊息最多 2000 字；好友識別只回傳姓名、username 與頭像 |
 | /api/posts/{id} | DELETE 整篇紀錄及照片引用 |
 | /api/posts/{id}/like | POST／DELETE；目前登入者對自己或被標記的紀錄新增／取消愛心，重複新增不會重複計數 |
 | /api/delete_single_photo | DELETE post_id/photo_url；只刪作者自己指定的一張 |

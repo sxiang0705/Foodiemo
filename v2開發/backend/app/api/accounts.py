@@ -4,7 +4,7 @@ from datetime import date
 from typing import Literal
 from fastapi import APIRouter,Depends,HTTPException,Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel,Field,field_validator
+from pydantic import BaseModel,Field,field_validator,model_validator
 from sqlalchemy import text
 from app.core.security import (COOKIE,digest,password_hash,password_valid,code_hash,
     make_token,current_user,check_email,user_payload,set_session)
@@ -41,11 +41,32 @@ class EmailInput(BaseModel):
         return v
 class Register(EmailInput):
     name:str=Field(min_length=1,max_length=80)
+    username:str=Field(min_length=3,max_length=30)
     password:str=Field(min_length=8,max_length=128)
     phone:str=Field(default="",max_length=30)
     dob:date|None=None
-class Login(EmailInput):
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls,v):return normalize_username(v)
+class Login(BaseModel):
+    identifier:str|None=Field(default=None,min_length=1,max_length=254)
+    email:str|None=Field(default=None,min_length=3,max_length=254)
     password:str=Field(min_length=1,max_length=128)
+    @field_validator("identifier","email")
+    @classmethod
+    def normalized_identifier(cls,v):return v.strip().lower() if v is not None else v
+    @model_validator(mode="after")
+    def require_identifier(self):
+        if not self.identifier and not self.email:raise ValueError("請輸入帳號或 Email")
+        if self.identifier and self.email and self.identifier!=self.email:raise ValueError("登入識別資料不一致")
+        return self
+    @property
+    def login_identifier(self):return self.identifier or self.email
+class UsernameUpdate(BaseModel):
+    username:str=Field(min_length=3,max_length=30)
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls,v):return normalize_username(v)
 class SendCode(EmailInput):
     purpose:Literal["signup","reset_password"]
 class Verify(SendCode):
@@ -57,6 +78,11 @@ class Reset(BaseModel):
 
 def user_by_email(c,email,lock=False):
     return c.execute(text("SELECT * FROM public.users WHERE lower(email)=:e"+(" FOR UPDATE" if lock else "")),{"e":email}).mappings().first()
+def normalize_username(value):
+    value=value.strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._]{1,28}[a-z0-9_]",value) or ".." in value:
+        raise ValueError("帳號需為 3 至 30 個小寫英數字、底線或句點，且不能連續使用句點")
+    return value
 def send_challenge(c,request,user,purpose):
     secret=require_secret(request)
     existing=c.execute(text("SELECT *,sent_at>now()-interval '60 seconds' AS too_soon, "
@@ -83,10 +109,13 @@ def register(data:Register,request:Request,c=Depends(connection)):
     if data.dob and data.dob>date.today():raise HTTPException(422,"生日不能晚於今天")
     c.execute(text("SELECT pg_advisory_xact_lock(hashtext(:e))"),{"e":data.email})
     if user_by_email(c,data.email):raise HTTPException(409,"此 Email 已註冊，請登入或重設密碼")
-    user=c.execute(text("INSERT INTO public.users(user_name,email,password_hash,phone,birthday) VALUES(:n,:e,:p,:ph,:d) RETURNING *"),
-      {"n":data.name.strip(),"e":data.email,"p":password_hash(data.password),"ph":data.phone,"d":data.dob}).mappings().one()
+    c.execute(text("SELECT pg_advisory_xact_lock(hashtext(:u))"),{"u":"username:"+data.username})
+    if c.execute(text("SELECT 1 FROM public.users WHERE lower(username)=:u"),{"u":data.username}).scalar():
+        raise HTTPException(409,"此帳號已有人使用，請換一個帳號")
+    user=c.execute(text("INSERT INTO public.users(user_name,username,email,password_hash,phone,birthday) VALUES(:n,:un,:e,:p,:ph,:d) RETURNING *"),
+      {"n":data.name.strip(),"un":data.username,"e":data.email,"p":password_hash(data.password),"ph":data.phone,"d":data.dob}).mappings().one()
     send_challenge(c,request,user,"signup")
-    return {"email":user["email"],"name":user["user_name"],"status":"verification_required"}
+    return {"email":user["email"],"name":user["user_name"],"username":user["username"],"status":"verification_required"}
 
 @router.post("/send_email_code")
 def send_code(data:SendCode,request:Request,c=Depends(connection)):
@@ -120,20 +149,35 @@ def verify(data:Verify,request:Request,c=Depends(connection)):
 @router.post("/login")
 def login(data:Login,request:Request,c=Depends(connection)):
     require_secret(request)
-    key=digest(data.email)
+    identifier=data.login_identifier
+    key=digest(identifier)
     c.execute(text("INSERT INTO public.login_limits(key_hash) VALUES(:k) ON CONFLICT DO NOTHING"),{"k":key})
     limit=c.execute(text("SELECT *,window_start>now()-interval '15 minutes' AS active FROM public.login_limits WHERE key_hash=:k FOR UPDATE"),{"k":key}).mappings().one()
     if limit["active"] and limit["attempts"]>=10:return failed(429,"嘗試次數過多，請稍後登入")
     c.execute(text("UPDATE public.login_limits SET attempts=CASE WHEN window_start>now()-interval '15 minutes' THEN attempts+1 ELSE 1 END,"
         "window_start=CASE WHEN window_start>now()-interval '15 minutes' THEN window_start ELSE now() END WHERE key_hash=:k"),{"k":key})
-    user=user_by_email(c,data.email)
-    if not user or not password_valid(data.password,user["password_hash"]):return failed(401,"Email 或密碼不正確")
+    if "@" in identifier:
+        user=user_by_email(c,identifier)
+    else:
+        user=c.execute(text("SELECT * FROM public.users WHERE lower(username)=:u"),{"u":identifier}).mappings().first()
+    if not user or not password_valid(data.password,user["password_hash"]):return failed(401,"帳號或 Email 或密碼不正確")
     if not user["email_verified"]:return failed(403,"請先完成 Email 驗證")
     c.execute(text("DELETE FROM public.login_limits WHERE key_hash=:k"),{"k":key})
     c.execute(text("UPDATE public.users SET last_login_at=now() WHERE user_id=:u"),{"u":user["user_id"]})
     response=JSONResponse(user_payload(c,user))
     set_session(response,make_token(c,user["user_id"],"session"),request.app.state.settings.environment=="production")
     return response
+
+@router.put("/me/username")
+def update_username(data:UsernameUpdate,request:Request,c=Depends(connection)):
+    user=current_user(c,request,True)
+    c.execute(text("SELECT pg_advisory_xact_lock(hashtext(:u))"),{"u":"username:"+data.username})
+    exists=c.execute(text("SELECT 1 FROM public.users WHERE lower(username)=:u AND user_id<>:id"),
+        {"u":data.username,"id":user["user_id"]}).scalar()
+    if exists:raise HTTPException(409,"此帳號已有人使用，請換一個帳號")
+    c.execute(text("UPDATE public.users SET username=:u,updated_at=now() WHERE user_id=:id"),
+        {"u":data.username,"id":user["user_id"]})
+    return {"status":"success","username":data.username}
 
 @router.post("/reset_password")
 def reset(data:Reset,c=Depends(connection)):
