@@ -28,7 +28,7 @@ def setup():
         transaction=conn.begin()
         assert_test_connection(conn,settings)
         mail=CaptureMailer()
-        app=create_app(settings,engine,write_engine=TransactionEngine(),mailer=mail,storage_root=root)
+        app=create_app(settings,TransactionEngine(),write_engine=TransactionEngine(),mailer=mail,storage_root=root)
         client=TestClient(app)
         try:yield client,mail,conn,app
         finally:

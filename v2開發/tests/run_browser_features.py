@@ -17,6 +17,7 @@ from app.core.security import digest
 import uvicorn
 settings=Settings.from_env();assert_test_target(settings)
 engine=build_engine(settings,readonly=False)
+read_engine=build_engine(settings)
 with engine.connect() as c:assert_test_connection(c,settings)
 run=uuid4().hex;emails=[run+'@example.test',run+'-friend@example.test']
 mailbox=ROOT/'.local'/('browser-mail-'+run+'.json')
@@ -25,7 +26,7 @@ class Mailer(CaptureMailer):
         if email not in emails:raise RuntimeError('Test recipient not allowed')
         super().send(email,code,purpose)
         mailbox.write_text(json.dumps(self.messages),encoding='utf-8')
-mail=Mailer();app=create_app(settings,engine,mailer=mail)
+mail=Mailer();app=create_app(settings,read_engine,write_engine=engine,mailer=mail)
 server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=8004,log_level='error',access_log=False))
 thread=threading.Thread(target=server.run,daemon=True)
 try:
@@ -56,5 +57,5 @@ finally:
                 c.execute(text('DELETE FROM users WHERE user_id=:u'),dict(u=user['user_id']))
             c.execute(text('DELETE FROM login_limits WHERE key_hash=:k'),dict(k=digest(email)))
         c.execute(text('DELETE FROM restaurant_rows WHERE "googleMaps_id"=:g'),dict(g=run))
-    collect_files(app);mailbox.unlink(missing_ok=True);engine.dispose()
+    collect_files(app);mailbox.unlink(missing_ok=True);engine.dispose();read_engine.dispose()
 sys.exit(code)

@@ -24,21 +24,22 @@ from app.recommendation.service import RotationProvider, decode_cursor, recommen
 logger = logging.getLogger("foodiemo.v2")
 
 def get_session(request: Request):
-    with Session(request.app.state.engine) as session:
+    with Session(request.app.state.read_engine) as session:
         yield session
 
 def create_app(settings=None, engine=None, provider=None, write_engine=None, mailer=None, storage_root=None):
     settings = settings or Settings.from_env()
-    db_engine = engine if engine is not None else build_engine(settings)
+    read_engine = engine if engine is not None else build_engine(settings)
     mutation_engine=write_engine if write_engine is not None else (engine if engine is not None else build_engine(settings,readonly=False))
     @asynccontextmanager
     async def lifespan(app):
         yield
-        db_engine.dispose()
-        if mutation_engine is not db_engine:mutation_engine.dispose()
+        read_engine.dispose()
+        if mutation_engine is not read_engine:mutation_engine.dispose()
     app = FastAPI(title="Foodiemo v2", version="0.2.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.engine = db_engine
+    app.state.read_engine = read_engine
+    app.state.engine = read_engine  # Compatibility alias for existing test helpers.
     app.state.write_engine=mutation_engine
     app.state.settings=settings
     app.state.mailer=mailer or SMTPMailer(settings)
@@ -84,7 +85,7 @@ def create_app(settings=None, engine=None, provider=None, write_engine=None, mai
 
     @app.get("/api/health")
     def health():
-        with db_engine.connect() as c:
+        with read_engine.connect() as c:
             c.execute(text("SELECT 1"))
         return {"status":"ok","stage":"original-frontend-accounts-records","readonly":False}
 

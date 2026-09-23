@@ -12,8 +12,10 @@ router=APIRouter(prefix="/api")
 
 def connection(request:Request):
     request.state.created_files=[]
+    engine=(request.app.state.read_engine if request.method in ("GET","HEAD","OPTIONS")
+            else request.app.state.write_engine)
     try:
-        with request.app.state.write_engine.begin() as c:yield c
+        with engine.begin() as c:yield c
     except BaseException:
         for path in request.state.created_files:
             try:path.unlink(missing_ok=True)

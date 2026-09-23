@@ -8,10 +8,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import inspect,text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
+from types import SimpleNamespace
 from app.core.config import Settings
 from app.core.database import build_engine
 from app.core.safety import assert_test_target,assert_test_connection
 from app.main import create_app,get_session
+from app.api.accounts import connection
 pytestmark=[pytest.mark.integration,pytest.mark.skipif(os.getenv("RUN_PG_TESTS")!="1",reason="Use guarded integration entry point")]
 ROOT=Path(__file__).resolve().parents[1]
 @pytest.fixture(scope="module")
@@ -75,4 +77,23 @@ def test_runtime_readonly_and_cleanup(engine):
             with pytest.raises(DBAPIError):
                 c.execute(text("CREATE TEMP TABLE forbidden(id int)"))
     finally:e.dispose()
+
+
+def test_api_connection_uses_readonly_engine_for_get_and_writer_for_post(engine,monkeypatch):
+    settings=Settings.from_env()
+    read_engine=build_engine(settings)
+    app=create_app(settings,read_engine,write_engine=engine)
+    monkeypatch.setattr("app.core.storage.collect_files",lambda app:None)
+    try:
+        for method,expected in [("GET","on"),("POST","off")]:
+            request=SimpleNamespace(method=method,app=app,state=SimpleNamespace())
+            dependency=connection(request)
+            conn=next(dependency)
+            try:
+                assert_test_connection(conn,settings)
+                assert conn.execute(text("SHOW transaction_read_only")).scalar()==expected
+            finally:
+                dependency.close()
+    finally:
+        read_engine.dispose()
 

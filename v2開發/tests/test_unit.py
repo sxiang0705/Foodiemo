@@ -41,6 +41,33 @@ def test_secret_repr():
     assert SETTINGS.password not in repr(SETTINGS)
     assert SETTINGS.password not in str(SETTINGS.url)
 
+
+def test_api_connection_routes_reads_and_mutations_to_separate_engines(monkeypatch):
+    from types import SimpleNamespace
+    from app.api.accounts import connection
+
+    class Transaction:
+        def __init__(self,name):self.name=name
+        def __enter__(self):return self.name
+        def __exit__(self,*args):return False
+    class Engine:
+        def __init__(self,name):self.name=name;self.calls=0
+        def begin(self):self.calls+=1;return Transaction(self.name)
+
+    read_engine=Engine("read")
+    write_engine=Engine("write")
+    app=SimpleNamespace(state=SimpleNamespace(read_engine=read_engine,write_engine=write_engine))
+    monkeypatch.setattr("app.core.storage.collect_files",lambda app:None)
+
+    for method,expected in [("GET","read"),("HEAD","read"),("OPTIONS","read"),("POST","write"),("DELETE","write")]:
+        request=SimpleNamespace(method=method,app=app,state=SimpleNamespace())
+        dependency=connection(request)
+        assert next(dependency)==expected
+        with pytest.raises(StopIteration):next(dependency)
+
+    assert read_engine.calls==3
+    assert write_engine.calls==2
+
 @pytest.fixture
 def guard_env(monkeypatch):
     monkeypatch.setenv("TEST_EXPECTED_HOST","127.0.0.1")

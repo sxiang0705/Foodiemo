@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 
 
 def build_engine(settings, *, readonly=True):
-    # All stage-1 application queries are read-only, including production.
+    # Read requests use this engine; mutations use an explicitly writable engine.
     options = "-c statement_timeout=5000 -c lock_timeout=3000 -c timezone=UTC"
     if readonly:
         options += " -c default_transaction_read_only=on"
