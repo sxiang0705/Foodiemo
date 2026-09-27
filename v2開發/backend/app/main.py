@@ -1,10 +1,14 @@
 import logging
+import json
 from pathlib import Path
 from urllib.parse import urlsplit
 from app.api.accounts import router as accounts_router
 from app.api.records import router as records_router
 from app.api.friends import router as friends_router
 from app.api.chat import router as chat_router
+from app.api.admin import router as admin_router
+from app.api.reports import router as reports_router
+from app.api.recommendations import router as recommendation_events_router
 from app.core.mail import SMTPMailer
 from app.core.safety import assert_test_path
 from contextlib import asynccontextmanager
@@ -20,8 +24,43 @@ from starlette.exceptions import HTTPException
 from app.core.config import ROOT, Settings
 from app.core.database import build_engine
 from app.recommendation.service import RotationProvider, decode_cursor, recommend
+from app.core.security import COOKIE, digest
 
 logger = logging.getLogger("foodiemo.v2")
+
+def persist_recommendation_run(request,session,app,result,count,cursor):
+    token=request.cookies.get(COOKIE,"")
+    if not token:
+        return result
+    user_id=session.execute(text("""
+        SELECT u.user_id FROM public.users u JOIN public.auth_tokens t ON t.user_id=u.user_id
+        WHERE t.token_hash=:token AND t.purpose='session' AND t.expires_at>now()
+          AND u.email_verified AND u.account_status='active'
+    """),{"token":digest(token)}).scalar()
+    if user_id is None:
+        return result
+    try:
+        with app.state.write_engine.begin() as c:
+            run_id=c.execute(text("""
+                INSERT INTO public.recommendation_runs(user_id,algorithm_version,request_context,candidate_count)
+                VALUES(:user,:version,CAST(:context AS jsonb),:count) RETURNING recommendation_run_id
+            """),{"user":user_id,"version":result["algorithm_version"],
+                "context":json.dumps({"count":count,"cursor":cursor or ""}),
+                "count":int(result.get("candidate_count",len(result["items"])))}).scalar()
+            for rank,item in enumerate(result["items"],1):
+                reasons=item.get("reasons")
+                c.execute(text("""
+                    INSERT INTO public.recommendation_items
+                      (recommendation_run_id,restaurant_id,rank,score,reasons)
+                    VALUES(:run,:restaurant,:rank,:score,CAST(:reasons AS jsonb))
+                """),{"run":run_id,"restaurant":int(item["id"]),"rank":rank,
+                    "score":item.get("score"),
+                    "reasons":json.dumps(reasons,ensure_ascii=False) if reasons is not None else None})
+        result["recommendation_run_id"]=str(run_id)
+    except Exception as exc:
+        logger.warning("recommendation_log_failed request_id=%s type=%s",
+                       getattr(request.state,"request_id",""),type(exc).__name__)
+    return result
 
 def get_session(request: Request):
     with Session(request.app.state.read_engine) as session:
@@ -90,19 +129,23 @@ def create_app(settings=None, engine=None, provider=None, write_engine=None, mai
         return {"status":"ok","stage":"original-frontend-accounts-records","readonly":False}
 
     @app.get("/api/restaurants/recommendations")
-    def recommendations(count: int = Query(3,ge=1,le=3),
+    def recommendations(request:Request,count: int = Query(3,ge=1,le=3),
                         cursor: str = Query("",max_length=64),
                         t: str = Query("",max_length=32), session=Depends(get_session)):
         try:
             decode_cursor(cursor)
         except ValueError:
             raise HTTPException(422) from None
-        return recommend(session,app.state.provider,count,cursor)
+        result=recommend(session,app.state.provider,count,cursor)
+        return persist_recommendation_run(request,session,app,result,count,cursor)
 
     app.include_router(accounts_router)
     app.include_router(records_router)
     app.include_router(friends_router)
     app.include_router(chat_router)
+    app.include_router(reports_router)
+    app.include_router(recommendation_events_router)
+    app.include_router(admin_router)
 
     @app.api_route("/api/{remaining:path}",methods=["GET","POST","PUT","PATCH","DELETE"])
     def pending(request: Request, remaining: str):

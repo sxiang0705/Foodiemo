@@ -32,7 +32,8 @@ def make_token(c,user_id,purpose):
 def current_user(c,request,lock=False):
     token=request.cookies.get(COOKIE,"")
     user=c.execute(text("SELECT u.* FROM public.users u JOIN public.auth_tokens t ON t.user_id=u.user_id "
-        "WHERE t.token_hash=:t AND t.purpose='session' AND t.expires_at>now() AND u.email_verified"+(" FOR UPDATE OF u" if lock else "")),
+        "WHERE t.token_hash=:t AND t.purpose='session' AND t.expires_at>now() AND u.email_verified "
+        "AND u.account_status='active'"+(" FOR UPDATE OF u" if lock else "")),
         {"t":digest(token)}).mappings().first()
     if not user:raise HTTPException(401,"登入已失效，請重新登入")
     return user

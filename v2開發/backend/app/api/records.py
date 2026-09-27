@@ -17,8 +17,8 @@ def owned(c,request,id):
 def accessible(c,request,id):
     user=current_user(c,request)
     row=c.execute(text("""SELECT r.* FROM public.records r
-        WHERE r.record_id=:id AND (r.user_id=:u OR EXISTS
-          (SELECT 1 FROM public.record_mentions rm WHERE rm.record_id=r.record_id AND rm.user_id=:u))"""),{"id":id,"u":user["user_id"]}).mappings().first()
+        WHERE r.record_id=:id AND (r.user_id=:u OR (r.moderation_status='visible' AND EXISTS
+          (SELECT 1 FROM public.record_mentions rm WHERE rm.record_id=r.record_id AND rm.user_id=:u)))"""),{"id":id,"u":user["user_id"]}).mappings().first()
     if not row: raise HTTPException(404,"找不到紀錄")
     return user,row
 def post(c,row,viewer_id=None):
@@ -26,7 +26,7 @@ def post(c,row,viewer_id=None):
     photos=c.execute(text("SELECT photo_id,storage_path FROM public.photos WHERE record_id=:r ORDER BY sort_order,photo_id"),{"r":row["record_id"]}).mappings().all()
     urls=["/api/photos/"+str(p["photo_id"]) for p in photos]
     mentions=c.execute(text("SELECT u.user_id,u.user_name FROM public.record_mentions m JOIN public.users u USING(user_id) WHERE record_id=:r ORDER BY u.user_id"),{"r":row["record_id"]}).mappings().all()
-    comments=c.execute(text("SELECT c.text,c.create_time,u.user_id,u.user_name,u.avatar_path FROM public.platform_comments c JOIN public.users u USING(user_id) WHERE c.record_id=:r AND NOT c.is_deleted ORDER BY c.create_time,c.comment_id"),{"r":row["record_id"]}).mappings().all()
+    comments=c.execute(text("SELECT c.text,c.create_time,u.user_id,u.user_name,u.avatar_path FROM public.platform_comments c JOIN public.users u USING(user_id) WHERE c.record_id=:r AND NOT c.is_deleted AND NOT c.moderation_hidden ORDER BY c.create_time,c.comment_id"),{"r":row["record_id"]}).mappings().all()
     likes=int(c.execute(text("SELECT count(*) FROM public.record_likes WHERE record_id=:r"),{"r":row["record_id"]}).scalar() or 0)
     is_liked=bool(viewer_id and c.execute(text("SELECT 1 FROM public.record_likes WHERE record_id=:r AND user_id=:u"),{"r":row["record_id"],"u":viewer_id}).scalar())
     is_owner=bool(viewer_id and int(row["user_id"]) == int(viewer_id))
@@ -45,7 +45,7 @@ def memories(request:Request,email:str="",scope:str=Query("own",pattern="^(own|m
         rows=c.execute(text("""SELECT DISTINCT r.*
             FROM public.records r
             LEFT JOIN public.record_mentions rm ON rm.record_id=r.record_id AND rm.user_id=:u
-            WHERE r.user_id=:u OR rm.user_id IS NOT NULL
+            WHERE r.user_id=:u OR (r.moderation_status='visible' AND rm.user_id IS NOT NULL)
             ORDER BY r.create_time DESC,r.record_id DESC"""),{"u":user["user_id"]}).mappings().all()
     else:
         rows=c.execute(text("SELECT * FROM public.records WHERE user_id=:u ORDER BY create_time DESC,record_id DESC"),{"u":user["user_id"]}).mappings().all()
@@ -177,8 +177,8 @@ def photo_file(photo_id:int,request:Request,c=Depends(connection)):
     user=current_user(c,request)
     key=c.execute(text("""SELECT p.storage_path
         FROM public.photos p JOIN public.records r USING(record_id)
-        WHERE p.photo_id=:p AND (r.user_id=:u OR EXISTS
-          (SELECT 1 FROM public.record_mentions rm WHERE rm.record_id=r.record_id AND rm.user_id=:u))"""),{"p":photo_id,"u":user["user_id"]}).scalar()
+        WHERE p.photo_id=:p AND (r.user_id=:u OR (r.moderation_status='visible' AND EXISTS
+          (SELECT 1 FROM public.record_mentions rm WHERE rm.record_id=r.record_id AND rm.user_id=:u)))"""),{"p":photo_id,"u":user["user_id"]}).scalar()
     if not key:raise HTTPException(404,"找不到照片")
     path=file_path(request.app.state.storage_root,key)
     if not path.is_file():raise HTTPException(404,"找不到照片")

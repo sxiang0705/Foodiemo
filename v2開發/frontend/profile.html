@@ -116,6 +116,8 @@
             transition: opacity 0.2s;
         }
         .menu-item:active { opacity: 0.6; }
+        #adminConsoleRow { display: none; }
+        #adminConsoleRow.admin-visible { display: flex; }
 
         .menu-item.is-premiumUser .item-icon { stroke: #d32f2f; animation: ding 0.5s ease; }
         .menu-item.is-premiumUser .item-text { color: #d32f2f; font-weight: 700; }
@@ -171,6 +173,10 @@
     </div>
 
     <div class="menu-list">
+        <div class="menu-item" id="adminConsoleRow" role="button" tabindex="0" onclick="openEmbeddedFeature('admin.html')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEmbeddedFeature('admin.html')}">
+            <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z"></path><path d="m9 12 2 2 4-4"></path></svg>
+            <span class="item-text">管理員控制台</span>
+        </div>
         <div class="menu-item">
             <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
             <span class="item-text">My Profile</span>
@@ -283,8 +289,16 @@
 
             // 5. 檢查 VIP 狀態
             await checkStatus();
+            checkAdminAccess();
             window.signalFoodiemoFeatureReady?.();
         });
+
+        async function checkAdminAccess() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/overview`, {credentials:'include', cache:'no-store'});
+                if (response.ok) document.getElementById('adminConsoleRow')?.classList.add('admin-visible');
+            } catch (_) {}
+        }
 
         /**
          * 載入頭像邏輯

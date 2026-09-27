@@ -162,6 +162,7 @@ def login(data:Login,request:Request,c=Depends(connection)):
         user=c.execute(text("SELECT * FROM public.users WHERE lower(username)=:u"),{"u":identifier}).mappings().first()
     if not user or not password_valid(data.password,user["password_hash"]):return failed(401,"帳號或 Email 或密碼不正確")
     if not user["email_verified"]:return failed(403,"請先完成 Email 驗證")
+    if user["account_status"] != "active":return failed(403,"帳號目前暫停使用，請聯絡管理員")
     c.execute(text("DELETE FROM public.login_limits WHERE key_hash=:k"),{"k":key})
     c.execute(text("UPDATE public.users SET last_login_at=now() WHERE user_id=:u"),{"u":user["user_id"]})
     response=JSONResponse(user_payload(c,user))

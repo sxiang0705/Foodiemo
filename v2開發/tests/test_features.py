@@ -10,7 +10,8 @@ from app.core.config import Settings,ROOT
 from app.core.database import build_engine
 from app.core.safety import assert_test_target,assert_test_connection,assert_test_path
 from app.core.mail import CaptureMailer,SMTPMailer
-from app.main import create_app
+from app.main import create_app,get_session,persist_recommendation_run
+from sqlalchemy.orm import Session
 
 pytestmark=[pytest.mark.integration,pytest.mark.skipif(os.getenv('RUN_PG_TESTS')!='1',reason='Guarded PostgreSQL only')]
 
@@ -245,3 +246,76 @@ def test_invalid_upload_rolls_back_files_and_last_photo_delete(setup):
     assert c.delete('/api/delete_single_photo',params=dict(post_id=record,photo_url=url)).status_code==200
     assert c.get('/api/get_memories').json()==[]
     assert list(app.state.storage_root.iterdir())==[]
+
+
+def test_admin_console_reports_moderation_and_recommendation_review(setup):
+    client,mail,db,app=setup
+    admin=register(client,mail,'admin-console@example.test','管理員',username='admin_console')
+    db.execute(text("UPDATE public.users SET role='admin' WHERE user_id=:id"),{'id':int(admin['id'])})
+    client.cookies.clear()
+    owner=register(client,mail,'post-owner@example.test','貼文作者',username='post_owner')
+    saved=client.post('/api/upload_memory_post',data={'initial_comment':'待審核留言 待審核貼文'},files={'files':('admin.jpg',jpeg(),'image/jpeg')})
+    assert saved.status_code==200,saved.text
+    record_id=int(saved.json()['id'])
+    comment_id=db.execute(text('SELECT comment_id FROM public.platform_comments WHERE record_id=:id'),{'id':record_id}).scalar()
+    db.execute(text('INSERT INTO public.restaurant_rows (restaurant_id,"googleMaps_id",title,"reviewsCount") VALUES (981291,\'admin-reco-test\',\'推薦測試店\',0)'))
+
+    assert client.get('/api/admin/overview').status_code==403
+    admin_client=TestClient(app)
+    def recommendation_session():
+        session=Session(bind=db,join_transaction_mode='create_savepoint')
+        try:yield session
+        finally:session.close()
+    app.dependency_overrides[get_session]=recommendation_session
+    try:
+        assert admin_client.get('/api/admin/overview').status_code==401
+        report_payload={'target_type':'record','target_id':record_id,'reason_code':'privacy','details':'測試檢舉案件'}
+        assert client.post('/api/reports',json=report_payload).status_code==201
+        assert client.post('/api/reports',json=report_payload).status_code==409
+        login=admin_client.post('/api/login',json={'identifier':admin['username'],'password':'Correct-password-1'})
+        assert login.status_code==200,login.text
+        assert admin_client.get('/api/admin/overview').json()['open_reports']==1
+        assert admin_client.get('/api/admin/users').json()['items'][0]['username']
+        assert admin_client.get('/api/admin/posts',params={'q':'待審核貼文'}).json()['total']==1
+        assert admin_client.get('/api/admin/comments',params={'q':'待審核留言'}).json()['total']==1
+        report_item=admin_client.get('/api/admin/reports').json()['items'][0]
+        assert report_item['target_status']=='visible' and report_item['target_username']==owner['username']
+        assert len(report_item['target_photo_ids'])==1
+
+        hidden=admin_client.post(f'/api/admin/comments/{comment_id}/moderation',json={'hidden':True,'reason':'測試隱藏留言'})
+        assert hidden.status_code==200 and hidden.json()['moderation_hidden'] is True
+        assert client.get(f'/api/get_post/{record_id}').json()['commentCount']==0
+        restored=admin_client.post(f'/api/admin/comments/{comment_id}/moderation',json={'hidden':False,'reason':'測試恢復留言'})
+        assert restored.status_code==200
+        assert client.get(f'/api/get_post/{record_id}').json()['commentCount']==1
+
+        report_id=admin_client.get('/api/admin/reports').json()['items'][0]['id']
+        assert admin_client.post(f'/api/admin/reports/{report_id}/review',json={'status':'resolved','note':'已完成測試處理'}).status_code==200
+        assert admin_client.get('/api/admin/reports?status=resolved').json()['total']==1
+
+        run=admin_client.get('/api/restaurants/recommendations?count=1').json()
+        assert run['recommendation_run_id']
+        item=run['items'][0]
+        item.update(score=0.88,reasons=['整合測試推薦原因'])
+        class SessionAdapter:
+            def execute(self,statement,params=None):return db.execute(statement,params or {})
+        from types import SimpleNamespace
+        request=SimpleNamespace(cookies={'foodiemo_session':admin_client.cookies.get('foodiemo_session')},
+                                state=SimpleNamespace(request_id='admin-integration-run'))
+        persist_recommendation_run(request,SessionAdapter(),app,run,1,'')
+        impression=admin_client.post('/api/restaurants/recommendation-events',json={'run_id':int(run['recommendation_run_id']),'restaurant_id':int(item['id']),'event_type':'impression'})
+        assert impression.status_code==201,impression.text
+        event=admin_client.post('/api/restaurants/recommendation-events',json={'run_id':int(run['recommendation_run_id']),'restaurant_id':int(item['id']),'event_type':'open_detail'})
+        assert event.status_code==201,event.text
+        runs=admin_client.get('/api/admin/recommendations').json()
+        assert runs['total']==1 and runs['items'][0]['items'][0]['detail_opens']==1
+        assert runs['items'][0]['items'][0]['impressions']==1
+        assert runs['items'][0]['algorithm_version']=='rotation-v1'
+        assert runs['items'][0]['items'][0]['score']==0.88
+        assert runs['items'][0]['items'][0]['reasons']==['整合測試推薦原因']
+        assert admin_client.get('/api/admin/audit').json()['total']>=3
+        assert admin_client.post(f'/api/admin/posts/{record_id}/moderation',json={'status':'hidden','reason':'測試隱藏貼文'}).status_code==200
+        assert client.get('/api/get_post/'+str(record_id)).status_code==200 # 作者仍可管理自己的貼文
+    finally:
+        app.dependency_overrides.pop(get_session,None)
+        admin_client.close()

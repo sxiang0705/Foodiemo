@@ -52,6 +52,8 @@ integration 必須先準備 .env.test 指向 foodiemo_v2_test，包含專用角�
 
 此備份腳本針對已核對的 PostgreSQL 9.5.25；只建立新還原庫，不覆蓋正式庫，不覆蓋既有測試庫。基線延續 v1 的 0001_baseline；正式庫已套用 0002_accounts_records。後續既有庫升級使用 scripts/apply_existing.py，預設唯讀預檢；需明確 --apply 才寫入。備份、還原庫及測試庫需保留／清理時按確切目標另行操作，不自動刪除。
 
+管理員功能使用 migration 0007。正式資料庫必須先建立新的完整備份並完成隔離還原核驗，再使用 `scripts/apply_0007_existing.py --backup-dir backups/備份資料夾` 做唯讀預檢；人工核對輸出後才加 `--apply` 套用。首次管理員需在遷移完成後以互動終端執行 `scripts/promote_first_admin.py`，輸入已驗證的使用者帳號並再次確認；程式不會自動提升任何帳號。
+
 詳見 [開發流程](v2開發流程.md)、[測試流程](v2測試流程.md)、[前端基線](docs/frontend-baseline.md)、[API 契約](docs/api.md) 與 [本批測試紀錄](docs/test-report-2026-09-09.md)。
 
 

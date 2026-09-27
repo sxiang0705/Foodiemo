@@ -30,7 +30,7 @@ ID 始終是十進位字串，避免 JavaScript bigint 精度流失。title／su
 
 mapLink 以有效座標或店名／地址 URL 編碼組成 Google Maps 搜尋；不把 googleMaps_id 當成已確認的 Places ID。前端只允許 https://www.google.com/maps/ 地圖連結，另開視窗使用 noopener。
 
-backend/app/recommendation/service.py 的 Provider.select(session, RecommendationContext) 可替換。基礎 rotation-v1 依穩定主鍵接續、尾端繞回，至多取 3 筆且不重複；候選少於 3 就回實際筆數。游標不包含認證資訊，不能當成身分證明。無寫入 runs／items 或事件；階段 5 才接已驗證身分、後端偏好及演算法追蹤契約。此介面先提供可測試替換點，不代表最終演算法契約已完成。
+backend/app/recommendation/service.py 的 Provider.select(session, RecommendationContext) 可替換。基礎 rotation-v1 依穩定主鍵接續、尾端繞回，至多取 3 筆且不重複；候選少於 3 就回實際筆數。游標不包含認證資訊，不能當成身分證明。推薦 API 保留匿名唯讀契約；有有效登入 Cookie 時，後端另將該次結果寫入 `recommendation_runs`／`recommendation_items`，未登入結果不保存。此介面先提供可測試替換點，不代表最終演算法契約已完成。
 
 錯誤採 JSON detail 與 error.code/message/request_id。無效 count／cursor 回 422；DB 中斷回 503，不洩漏 SQL／帳密，也不切內建餐廳。其他尚未實作 API 回 501。應用資料連線預設強制唯讀、有連線與 SQL 逾時。前端 10 秒逾時，連續下拉取消前請求並驗證最新序號，錯誤後仍用原下拉重試。
 
@@ -73,3 +73,16 @@ photo_order 是 JSON 陣列，例：`[{"existing":"/api/photos/12"},{"new":0}]`�
 CaptureMailer 僅由隔離測試注入，HTTP 回應無 OTP preview；正式 SMTP 由忽略的本機設定提供並已完成實信驗收。付款沒有外部金流請求；既有 Google OAuth API 尚未實作。
 
 `photo_location_text` 不是餐廳 ID，也不會取得餐廳資料；目前用既有 `records.location_text` 保存照片 GPS 的短標籤，後端在圖片實體化時移除原始 EXIF。照片 GPS 由前端在畫布壓縮前讀取，沒有 GPS 時不會自動呼叫瀏覽器定位。
+
+## 2026-09-28 管理員與推薦評估 API（migration 0007）
+
+| 路徑 | 方法與資料 |
+| --- | --- |
+| /api/reports | POST JSON `target_type`（user/record/comment）、`target_id`、`reason_code`（spam/harassment/inappropriate/privacy/other）、`details`；需登入，單一使用者每小時最多 10 件，同一目標有未結案件時拒絕重複提交 |
+| /api/restaurants/recommendation-events | POST JSON `run_id`、`restaurant_id`、`event_type`（impression/open_detail/open_map/favorite/visited/not_interested）；需登入，僅允許回報自己該次推薦中確實存在的店家，每分鐘最多 120 件 |
+| /api/admin/overview | GET；管理儀表數字 |
+| /api/admin/users、/api/admin/posts、/api/admin/comments、/api/admin/reports、/api/admin/recommendations、/api/admin/audit | GET；管理列表、搜尋、狀態篩選與 offset/limit，僅管理員 |
+| /api/admin/users/{id}/status、/role、/api/admin/posts/{id}/moderation、/api/admin/comments/{id}/moderation、/api/admin/reports/{id}/review | POST；需提供操作原因；帳號停用會撤銷所有登入 Session；至少留一位啟用中的管理員；每項操作寫入稽核紀錄 |
+| /api/admin/photos/{id} | GET；管理員檢視被檢舉貼文照片，仍走儲存路徑白名單與檔案存取檢查 |
+
+所有 `/api/admin/*` 都在伺服器端以已驗證 Session 和 `users.role='admin'` 判斷，前端隱藏入口不作為安全控制。評論管理以獨立 `moderation_hidden` 欄位保存狀態，不會復原使用者自行刪除的留言。第一位管理員需由安全遷移後的互動式腳本指定，不會預設特定帳號。推薦評估頁把每次版本、請求情境、結果排序、分數／原因和使用者詳情／地圖點擊次數放在同一 run 下，方便比較演算法版本。

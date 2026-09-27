@@ -29,8 +29,8 @@ def test_migration_reentry(engine):
     config=Config(str(ROOT/"alembic.ini"))
     command.upgrade(config,"head");command.upgrade(config,"head")
     with engine.connect() as c:
-        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()=="0006_usernames"
-        assert len(inspect(c).get_table_names(schema="public"))==23
+        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()=="0007_admin_console"
+        assert len(inspect(c).get_table_names(schema="public"))==25
 @pytest.fixture
 def fixture_connection(engine):
     with engine.connect() as c:
@@ -96,4 +96,3 @@ def test_api_connection_uses_readonly_engine_for_get_and_writer_for_post(engine,
                 dependency.close()
     finally:
         read_engine.dispose()
-

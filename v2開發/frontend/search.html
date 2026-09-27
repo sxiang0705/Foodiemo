@@ -362,6 +362,8 @@
         let currentRestaurants = [];
         let currentDetailMapLink = '';
         let currentDetailSource = 'postgresql';
+        let currentDetailRun = null;
+        let currentRunId = null;
         let nextCursor = null;
         let activeRequest = null;
         let requestVersion = 0;
@@ -403,7 +405,10 @@
                 card.className = 'card fade-in-item';
                 card.dataset.restaurantId = item.id;
                 card.style.animationDelay = `${index * 0.1}s`;
-                card.onclick = () => openDetail(item, source);
+                card.onclick = () => {
+                    trackRecommendationEvent(item, 'open_detail', currentRunId);
+                    openDetail(item, source, currentRunId);
+                };
                 const img = document.createElement('img');
                 img.className = 'card-img';
                 img.alt = item.title || '未命名餐廳';
@@ -420,7 +425,14 @@
                     });
                 card.append(img, overlay);
                 listContainer.appendChild(card);
+                trackRecommendationEvent(item, 'impression', currentRunId);
             });
+        }
+
+        function trackRecommendationEvent(item, eventType, runId) {
+            if (!runId || !item?.id) return;
+            FoodiemoAPI.recommendationEvent({run_id: runId, restaurant_id: item.id, event_type: eventType})
+                .catch(() => {});
         }
 
         async function fetchRestaurants() {
@@ -433,6 +445,7 @@
                 const data = await FoodiemoAPI.recommendations(nextCursor, controller.signal);
                 if (version !== requestVersion) return;
                 nextCursor = data.next_cursor || null;
+                currentRunId = data.recommendation_run_id || null;
                 renderList(data.items, data.source);
             } catch (error) {
                 if (version !== requestVersion) return;
@@ -485,7 +498,7 @@
         listContainer.addEventListener('mouseup', endDrag);
         listContainer.addEventListener('mouseleave', endDrag);
 
-        function openDetail(item, source) {
+        function openDetail(item, source, runId) {
             const detailImage = document.getElementById('modal-img');
             detailImage.onerror = () => { detailImage.onerror = null; detailImage.src = fallbackCardImage(); };
             detailImage.src = safeImage(item.img);
@@ -500,6 +513,7 @@
 
             currentDetailMapLink = item.mapLink || '';
             currentDetailSource = source;
+            currentDetailRun = runId && item.id ? {run_id: runId, restaurant_id: item.id} : null;
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('active'), 10);
         }
@@ -514,6 +528,7 @@
                 try {
                     const url = new URL(currentDetailMapLink);
                     if (url.protocol !== 'https:' || url.hostname !== 'www.google.com' || !url.pathname.startsWith('/maps/')) throw new Error();
+                    if (currentDetailRun) FoodiemoAPI.recommendationEvent({...currentDetailRun,event_type:'open_map'}).catch(() => {});
                     window.open(url.href, '_blank', 'noopener,noreferrer');
                 } catch (_) { alert('目前沒有地圖連結'); }
             } else {

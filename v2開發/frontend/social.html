@@ -624,9 +624,20 @@
             }
         };
 
-        window.reportPost = function(event, postId, feedType) {
+        window.reportPost = async function(event, postId, feedType) {
             event.stopPropagation();
-            alert(feedType === "discover" ? TEXT.reportedDiscover : TEXT.reportedMine);
+            const details = prompt('請簡述檢舉原因（例如：垃圾訊息、騷擾、不當內容或隱私問題）');
+            if (details === null) return;
+            if (!details.trim()) { alert('請填寫檢舉原因'); return; }
+            try {
+                const response = await fetch(API_BASE_URL + '/reports', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({target_type:'record',target_id:Number(postId),reason_code:'other',details:details.trim()})
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.detail || '檢舉送出失敗');
+                alert('檢舉已送交管理員處理');
+            } catch (error) { alert(error.message || '檢舉送出失敗，請稍後再試'); }
         };
 
         window.goPremium = function(event) {

@@ -24,6 +24,14 @@ window.FoodiemoAPI = {
             clearTimeout(timeout);
             signal?.removeEventListener("abort",abort);
         }
+    },
+    async recommendationEvent(event) {
+        const response = await fetch(DB_CONFIG.apiUrl + "/restaurants/recommendation-events", {
+            method: "POST", credentials: "include", cache: "no-store",
+            headers: {"Content-Type": "application/json"}, body: JSON.stringify(event)
+        });
+        if (!response.ok) throw new Error("RECOMMENDATION_EVENT_UNAVAILABLE");
+        return response.json();
     }
 };
 

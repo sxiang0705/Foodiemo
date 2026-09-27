@@ -63,9 +63,16 @@ def map_link(row):
 
 def card(row):
     # No verified photo/rating/price columns; unknown weekday origin is not guessed.
-    return dict(id=str(row.restaurant_id), title=row.title, subtitle=row.category,
+    result = dict(id=str(row.restaurant_id), title=row.title, subtitle=row.category,
                 img=None, rating=None, hours=None, price=None, address=row.address,
                 mapLink=map_link(row), source="postgresql")
+    score = getattr(row, "score", None)
+    reasons = getattr(row, "reasons", None)
+    if score is not None:
+        result["score"] = float(score)
+    if reasons is not None:
+        result["reasons"] = reasons
+    return result
 
 def recommend(session, provider, count, cursor):
     context = RecommendationContext(count=count, after_id=decode_cursor(cursor))
@@ -75,5 +82,6 @@ def recommend(session, provider, count, cursor):
         raise RuntimeError("Provider returned invalid restaurant identities")
     return dict(items=[card(r) for r in rows], source="postgresql",
                 algorithm_version=provider.version,
+                candidate_count=len(rows),
                 next_cursor=encode_cursor(ids[-1]) if ids else None)
 

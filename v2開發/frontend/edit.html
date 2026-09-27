@@ -86,14 +86,6 @@
         .grid-item.mode-select .check-circle { display: flex; }
         .grid-item.selected .check-circle { background-color: #be9f82; border-color: #be9f82; transform: scale(1.1); }
 
-        /* --- 底部重置按鈕 --- */
-        .reset-btn {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background: #ff3b30; color: white; border: none; padding: 8px 16px;
-            border-radius: 20px; font-size: 12px; z-index: 100; opacity: 0.8; cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-
         canvas { display: none; }
     </style>
 </head>
@@ -126,8 +118,6 @@
         <div class="grid-gallery" id="feedGrid"></div>
         <input type="file" id="imageLoader" accept="image/*" multiple style="display: none;">
     </div>
-
-    <button class="reset-btn" onclick="hardReset()">⚠️ 重置資料庫</button>
 
     <canvas id="compressCanvas"></canvas>
     
@@ -414,14 +404,6 @@
             if (shareBtn.disabled) return;
             if (pendingImages.length === 0 || confirm("要捨棄內容並返回嗎？")) goHome();
             else return;
-        };
-
-        window.hardReset = async () => {
-            if (confirm("確定要刪除所有本地資料並登出嗎？")) {
-                await fetch(`${API_BASE_URL}/logout`, { method: 'POST' }).catch(() => null);
-                await clearLocalAppData();
-                window.top.location.href = "login.html";
-            }
         };
 
         renderGrid();
