@@ -32,17 +32,19 @@ def make_token(c,user_id,purpose):
 def current_user(c,request,lock=False):
     token=request.cookies.get(COOKIE,"")
     user=c.execute(text("SELECT u.* FROM public.users u JOIN public.auth_tokens t ON t.user_id=u.user_id "
-        "WHERE t.token_hash=:t AND t.purpose='session' AND t.expires_at>now() AND u.email_verified "
+        "WHERE t.token_hash=:t AND t.purpose='session' AND t.expires_at>now() "
+        "AND (u.email_verified OR u.email_auth_exempt) "
         "AND u.account_status='active'"+(" FOR UPDATE OF u" if lock else "")),
         {"t":digest(token)}).mappings().first()
     if not user:raise HTTPException(401,"登入已失效，請重新登入")
     return user
 def check_email(user,email):
-    if email and email.strip().lower()!=user["email"].lower():raise HTTPException(403,"無權操作其他帳號")
+    if email and (not user["email"] or email.strip().lower()!=user["email"].lower()):
+        raise HTTPException(403,"無權操作其他帳號")
 def user_payload(c,user):
     premium=c.execute(text("SELECT EXISTS(SELECT 1 FROM public.memberships WHERE user_id=:u AND status='active' AND (end_date IS NULL OR end_date>now()))"),
         {"u":user["user_id"]}).scalar()
-    return dict(id=str(user["user_id"]),email=user["email"],username=user["username"],name=user["user_name"] or "",
+    return dict(id=str(user["user_id"]),email=user["email"] or "",username=user["username"],name=user["user_name"] or "",
                 is_premium=premium,avatar_url="/api/avatars/"+str(user["user_id"]) if user["avatar_path"] else None)
 def set_session(response,token,secure):
     response.set_cookie(COOKIE,token,httponly=True,secure=secure,samesite="lax",max_age=604800,path="/")

@@ -143,10 +143,12 @@ def update_user_role(user_id: int, data: RoleUpdate, request: Request, ctx=Depen
     if user_id == actor["user_id"] and data.role != "admin":
         raise HTTPException(422, "不能在目前工作階段移除自己的管理員權限")
     c.execute(text("SELECT pg_advisory_xact_lock(hashtext('foodiemo-admin-role-guard-v1'))"))
-    target = c.execute(text("SELECT user_id,role FROM public.users WHERE user_id=:id FOR UPDATE"),
+    target = c.execute(text("SELECT user_id,role,email_auth_exempt FROM public.users WHERE user_id=:id FOR UPDATE"),
                        {"id": user_id}).mappings().first()
     if not target:
         raise HTTPException(404, "找不到使用者")
+    if target["email_auth_exempt"] and data.role != "admin":
+        raise HTTPException(409, "請先設定並驗證 Email，才能移除此管理員的無 Email 登入資格")
     if target["role"] == "admin" and data.role == "user":
         other_admins = c.execute(text("SELECT count(*) FROM public.users WHERE role='admin' AND account_status='active' AND user_id<>:id"),
                                  {"id": user_id}).scalar()

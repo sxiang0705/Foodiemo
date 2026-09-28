@@ -29,7 +29,7 @@ def test_migration_reentry(engine):
     config=Config(str(ROOT/"alembic.ini"))
     command.upgrade(config,"head");command.upgrade(config,"head")
     with engine.connect() as c:
-        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()=="0007_admin_console"
+        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()=="0008_email_less_first_admin"
         assert len(inspect(c).get_table_names(schema="public"))==25
 @pytest.fixture
 def fixture_connection(engine):

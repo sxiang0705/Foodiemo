@@ -85,4 +85,4 @@ CaptureMailer 僅由隔離測試注入，HTTP 回應無 OTP preview；正式 SMT
 | /api/admin/users/{id}/status、/role、/api/admin/posts/{id}/moderation、/api/admin/comments/{id}/moderation、/api/admin/reports/{id}/review | POST；需提供操作原因；帳號停用會撤銷所有登入 Session；至少留一位啟用中的管理員；每項操作寫入稽核紀錄 |
 | /api/admin/photos/{id} | GET；管理員檢視被檢舉貼文照片，仍走儲存路徑白名單與檔案存取檢查 |
 
-所有 `/api/admin/*` 都在伺服器端以已驗證 Session 和 `users.role='admin'` 判斷，前端隱藏入口不作為安全控制。評論管理以獨立 `moderation_hidden` 欄位保存狀態，不會復原使用者自行刪除的留言。第一位管理員需由安全遷移後的互動式腳本指定，不會預設特定帳號。推薦評估頁把每次版本、請求情境、結果排序、分數／原因和使用者詳情／地圖點擊次數放在同一 run 下，方便比較演算法版本。
+所有 `/api/admin/*` 都在伺服器端以已驗證 Session 和 `users.role='admin'` 判斷，前端隱藏入口不作為安全控制。評論管理以獨立 `moderation_hidden` 欄位保存狀態，不會復原使用者自行刪除的留言。`0008_email_less_first_admin` 只允許資料庫唯一旗標授權的一個無 Email 首管登入；一般帳號仍必須完成 Email 驗證。無 Email 首管不能透過忘記密碼信件復原。首管由互動式 `scripts/promote_first_admin.py` 建立，不會自動授權其他帳號。推薦評估頁把每次版本、請求情境、結果排序、分數／原因和使用者詳情／地圖點擊次數放在同一 run 下，方便比較演算法版本。

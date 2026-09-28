@@ -93,6 +93,31 @@ def test_mail_failure_rolls_back_registration(setup):
     assert r.status_code==503
     assert db.execute(text("SELECT count(*) FROM users WHERE email='no-mail@example.test'")).scalar()==0
 
+def test_email_less_auth_exemption_is_limited_to_the_admin(setup):
+    client,mail,db,app=setup
+    from app.core.security import password_hash
+    admin_id=db.execute(text("""
+        INSERT INTO public.users(user_name,username,email,password_hash,email_verified,email_auth_exempt,role)
+        VALUES('admin_1','admin001',NULL,:password,false,true,'admin') RETURNING user_id
+    """),{'password':password_hash('Admin-password-123')}).scalar()
+    assert client.post('/api/login',json={'identifier':'admin001','password':'Admin-password-123'}).status_code==200
+    profile=client.get('/api/me')
+    assert profile.status_code==200 and profile.json()['email']==''
+    assert client.get('/api/admin/overview').status_code==200
+    assert db.execute(text('SELECT count(*) FROM public.users WHERE email_auth_exempt')).scalar()==1
+
+    db.execute(text("""
+        INSERT INTO public.users(user_name,username,email,password_hash,email_verified,role)
+        VALUES('No Email','no_email_user',NULL,:password,false,'user')
+    """),{'password':password_hash('Admin-password-123')})
+    client.cookies.clear()
+    assert client.post('/api/login',json={'identifier':'no_email_user','password':'Admin-password-123'}).status_code==403
+    assert client.post('/api/register',json={'name':'Missing Email','username':'missing_email',
+        'password':'Admin-password-123'}).status_code==422
+    second_admin=register(client,mail,'second-admin@example.test','另一位管理員',username='second_admin')
+    db.execute(text("UPDATE public.users SET role='admin' WHERE user_id=:id"),{'id':int(second_admin['id'])})
+    assert client.post(f"/api/admin/users/{admin_id}/role",json={"role":"user","reason":"測試移除豁免"}).status_code==409
+
 def test_preferences_and_demo_idempotency(setup):
     c,mail,db,app=setup;u=register(c,mail)
     from app.api.accounts import OPTIONS

@@ -35,7 +35,7 @@ def persist_recommendation_run(request,session,app,result,count,cursor):
     user_id=session.execute(text("""
         SELECT u.user_id FROM public.users u JOIN public.auth_tokens t ON t.user_id=u.user_id
         WHERE t.token_hash=:token AND t.purpose='session' AND t.expires_at>now()
-          AND u.email_verified AND u.account_status='active'
+          AND (u.email_verified OR u.email_auth_exempt) AND u.account_status='active'
     """),{"token":digest(token)}).scalar()
     if user_id is None:
         return result
