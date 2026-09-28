@@ -118,6 +118,43 @@ def test_email_less_auth_exemption_is_limited_to_the_admin(setup):
     db.execute(text("UPDATE public.users SET role='admin' WHERE user_id=:id"),{'id':int(second_admin['id'])})
     assert client.post(f"/api/admin/users/{admin_id}/role",json={"role":"user","reason":"測試移除豁免"}).status_code==409
 
+def test_offline_admin_password_reset_is_restricted_audited_and_revokes_sessions(setup):
+    client,mail,db,app=setup
+    from app.core.admin_maintenance import reset_email_less_admin_password
+    from app.core.security import password_hash,password_valid
+
+    admin_id=db.execute(text("""
+        INSERT INTO public.users(user_name,username,email,password_hash,email_verified,email_auth_exempt,role)
+        VALUES('admin_1','admin001',NULL,:password,false,true,'admin') RETURNING user_id
+    """),{'password':password_hash('Old-admin-password-1')}).scalar()
+    client.post('/api/login',json={'identifier':'admin001','password':'Old-admin-password-1'})
+    old_cookie=client.cookies.get('foodiemo_session')
+
+    ordinary=register(client,mail,'verified-admin@example.test','已驗證管理員',username='verified_admin')
+    db.execute(text("UPDATE public.users SET role='admin' WHERE user_id=:id"),{'id':int(ordinary['id'])})
+    with pytest.raises(LookupError):
+        reset_email_less_admin_password(db,'verified_admin',password_hash('New-admin-password-2'))
+
+    result=reset_email_less_admin_password(db,'admin001',password_hash('New-admin-password-2'))
+    assert result=={'user_id':admin_id,'username':'admin001','revoked_sessions':1}
+    stored=db.execute(text('SELECT password_hash FROM public.users WHERE user_id=:id'),{'id':admin_id}).scalar()
+    assert password_valid('New-admin-password-2',stored)
+    assert not password_valid('Old-admin-password-1',stored)
+    client.cookies.set('foodiemo_session',old_cookie)
+    assert client.get('/api/me').status_code==401
+    client.cookies.clear()
+    assert client.post('/api/login',json={'identifier':'admin001','password':'Old-admin-password-1'}).status_code==401
+    assert client.post('/api/login',json={'identifier':'admin001','password':'New-admin-password-2'}).status_code==200
+    audit=db.execute(text("""
+        SELECT actor_id,action,target_id,details FROM public.admin_audit_logs
+        WHERE action='admin.password_reset.offline' AND target_id=:id
+    """),{'id':admin_id}).mappings().one()
+    assert audit['actor_id'] is None and audit['target_id']==admin_id
+    assert audit['details']['source']=='offline_maintenance_tool'
+    assert audit['details']['revoked_sessions']==1
+    audit_view=client.get('/api/admin/audit',params={'action':'admin.password_reset.offline'}).json()
+    assert audit_view['items'][0]['actor_username']=='離線維運'
+
 def test_preferences_and_demo_idempotency(setup):
     c,mail,db,app=setup;u=register(c,mail)
     from app.api.accounts import OPTIONS

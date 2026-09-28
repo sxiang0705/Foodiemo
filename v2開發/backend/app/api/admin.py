@@ -350,7 +350,9 @@ def audit_logs(action: str = Query("", max_length=80), offset: int = Query(0, ge
     params = {"action": action}
     total = c.execute(text("SELECT count(*) FROM public.admin_audit_logs a " + filt), params).scalar()
     result = _page(c, """
-        SELECT a.audit_id::text AS id,u.username AS actor_username,a.action,a.target_type,
+        SELECT a.audit_id::text AS id,
+               CASE WHEN a.action='admin.password_reset.offline' THEN '離線維運' ELSE u.username END AS actor_username,
+               a.action,a.target_type,
                a.target_id::text AS target_id,a.reason,a.details,a.request_id,a.created_at
         FROM public.admin_audit_logs a LEFT JOIN public.users u ON u.user_id=a.actor_id
     """ + filt + " ORDER BY a.created_at DESC,a.audit_id DESC LIMIT :limit OFFSET :offset", params, offset, limit)

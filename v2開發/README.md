@@ -52,7 +52,7 @@ integration 必須先準備 .env.test 指向 foodiemo_v2_test，包含專用角�
 
 此備份腳本針對已核對的 PostgreSQL 9.5.25；只建立新還原庫，不覆蓋正式庫，不覆蓋既有測試庫。基線延續 v1 的 0001_baseline；正式庫已套用 0002_accounts_records。後續既有庫升級使用 scripts/apply_existing.py，預設唯讀預檢；需明確 --apply 才寫入。備份、還原庫及測試庫需保留／清理時按確切目標另行操作，不自動刪除。
 
-管理員控制台結構由 migration 0007 建立；migration 0008 僅允許唯一一位指定的首位管理員以無 Email 帳號登入。正式資料庫已完成 0001 至 0008，首位管理員也已建立。一般帳號仍需完成 Email 驗證；無 Email 首管沒有 Email 密碼重設或自助復原工具。若在其他既有資料庫部署 0008，先建立完整備份並驗證隔離還原，再使用 `scripts/apply_0008_existing.py --backup-dir backups/備份資料夾` 做唯讀預檢，人工核對後才加 `--apply`。`scripts/promote_first_admin.py` 只用於尚未建立首管的資料庫，互動式讀入密碼並寫入雜湊，不會把密碼存進原始碼。
+管理員控制台結構由 migration 0007 建立；migration 0008 僅允許唯一一位指定的首位管理員以無 Email 帳號登入。正式資料庫已完成 0001 至 0008，首位管理員也已建立。一般帳號仍需完成 Email 驗證。若首管忘記密碼，在 VPN 與 SSH tunnel 已連線的互動式終端執行 `./.venv/Scripts/python.exe scripts/reset_email_less_admin_password.py`；工具只允許重設這位無 Email 首管，隱藏輸入密碼、撤銷該帳號所有舊 Token，並寫入管理稽核紀錄，不提供密碼命令列參數。若在其他既有資料庫部署 0008，先建立完整備份並驗證隔離還原，再使用 `scripts/apply_0008_existing.py --backup-dir backups/備份資料夾` 做唯讀預檢，人工核對後才加 `--apply`。`scripts/promote_first_admin.py` 只用於尚未建立首管的資料庫，互動式讀入密碼並寫入雜湊，不會把密碼存進原始碼。
 
 詳見 [開發流程](v2開發流程.md)、[測試流程](v2測試流程.md)、[前端基線](docs/frontend-baseline.md)、[API 契約](docs/api.md) 與 [本批測試紀錄](docs/test-report-2026-09-09.md)。
 
