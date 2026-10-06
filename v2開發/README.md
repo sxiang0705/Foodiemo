@@ -1,6 +1,6 @@
 # Foodiemo v2
 
-目前版本 v2.2.1。已保留原版介面並串接 PostgreSQL：三卡推薦、可用帳號或 Email 登入、個人頁可修改唯一帳號、六題偏好、照片、地點／會員標註、留言及 Demo 會員。Email 仍用於 OTP 與密碼重設，不會公開在好友與貼文回應。SMTP 已完成實信驗收；月度回顧仍在後續規劃。詳見 [本批測試紀錄](docs/test-report-2026-09-23.md) 與 [資料庫現況](docs/資料庫現況.md)。
+目前版本 v2.2.2（2026-10-07 00:30 台灣時間）。已保留原版介面並串接 PostgreSQL：三卡推薦現在有餐廳圖片與食物圖片遞補、帳號登入與個人頁帳號編輯、六題偏好、照片、地點／會員標註、留言及 Demo 會員。Email 仍用於 OTP 與密碼重設，不會公開在好友與貼文回應。詳見 [餐廳圖片測試紀錄](docs/test-report-2026-10-07-restaurant-images.md) 與 [資料庫現況](docs/資料庫現況.md)。
 
 ## 啟動
 
@@ -24,6 +24,8 @@ Tunnel 使用 .local/known_hosts 中已核對的主機金鑰，未登錄時先�
 - 原版主入口：http://127.0.0.1:8002/ （Cookie 驗證；本機 SMTP 已設定）
 - 健康檢查：http://127.0.0.1:8002/api/health
 - v2 測試 API 預設 8003，Tunnel 預設 55433，不佔用 v1 的 8000／55432。
+
+推薦圖片來源與連線設定見 [餐廳圖片資料說明](data/README.md)。卡片及詳情使用資料庫的 HTTPS 餐廳圖片 URL，來源缺漏或載入失敗時使用食物圖片，再失敗才顯示本機佔位圖。
 
 推薦頁可直接核對唯讀資料；沒有加入假登入，沒有把首頁換成餐廳清單。尚未實作的 API（如 Google OAuth）回 501 NOT_IMPLEMENTED。原版頁面內的本機示意仍保留，詳見差異清單。
 
@@ -52,7 +54,7 @@ integration 必須先準備 .env.test 指向 foodiemo_v2_test，包含專用角�
 
 此備份腳本針對已核對的 PostgreSQL 9.5.25；只建立新還原庫，不覆蓋正式庫，不覆蓋既有測試庫。基線延續 v1 的 0001_baseline；正式庫已套用 0002_accounts_records。後續既有庫升級使用 scripts/apply_existing.py，預設唯讀預檢；需明確 --apply 才寫入。備份、還原庫及測試庫需保留／清理時按確切目標另行操作，不自動刪除。
 
-管理員控制台結構由 migration 0007 建立；migration 0008 僅允許唯一一位指定的首位管理員以無 Email 帳號登入。正式資料庫已完成 0001 至 0008，首位管理員也已建立。一般帳號仍需完成 Email 驗證。若首管忘記密碼，在 VPN 與 SSH tunnel 已連線的互動式終端執行 `./.venv/Scripts/python.exe scripts/reset_email_less_admin_password.py`；工具只允許重設這位無 Email 首管，隱藏輸入密碼、撤銷該帳號所有舊 Token，並寫入管理稽核紀錄，不提供密碼命令列參數。若在其他既有資料庫部署 0008，先建立完整備份並驗證隔離還原，再使用 `scripts/apply_0008_existing.py --backup-dir backups/備份資料夾` 做唯讀預檢，人工核對後才加 `--apply`。`scripts/promote_first_admin.py` 只用於尚未建立首管的資料庫，互動式讀入密碼並寫入雜湊，不會把密碼存進原始碼。
+管理員控制台結構由 migration 0007 建立；migration 0008 僅允許唯一一位指定的首位管理員以無 Email 帳號登入。正式資料庫目前已完成 0001 至 0011，首位管理員也已建立；最新資料庫狀態見 [資料庫現況](docs/資料庫現況.md)。一般帳號仍需完成 Email 驗證。若首管忘記密碼，在 VPN 與 SSH tunnel 已連線的互動式終端執行 `./.venv/Scripts/python.exe scripts/reset_email_less_admin_password.py`；工具只允許重設這位無 Email 首管，隱藏輸入密碼、撤銷該帳號所有舊 Token，並寫入管理稽核紀錄，不提供密碼命令列參數。若在其他既有資料庫部署 migration，先建立完整備份並驗證隔離還原，再依該 migration 對應的 guarded `scripts/apply_00xx_existing.py` 預檢，人工核對後才加 `--apply`。`scripts/promote_first_admin.py` 只用於尚未建立首管的資料庫，互動式讀入密碼並寫入雜湊，不會把密碼存進原始碼。
 
 詳見 [開發流程](v2開發流程.md)、[測試流程](v2測試流程.md)、[前端基線](docs/frontend-baseline.md)、[API 契約](docs/api.md) 與 [本批測試紀錄](docs/test-report-2026-09-09.md)。
 

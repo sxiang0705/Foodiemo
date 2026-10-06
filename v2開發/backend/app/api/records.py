@@ -1,5 +1,6 @@
 import json
-from datetime import timezone,timedelta
+import base64
+from datetime import datetime,timezone,timedelta
 from fastapi import APIRouter,Depends,HTTPException,Request,Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel,Field
@@ -21,38 +22,95 @@ def accessible(c,request,id):
           (SELECT 1 FROM public.record_mentions rm WHERE rm.record_id=r.record_id AND rm.user_id=:u)))"""),{"id":id,"u":user["user_id"]}).mappings().first()
     if not row: raise HTTPException(404,"找不到紀錄")
     return user,row
-def post(c,row,viewer_id=None):
-    author=c.execute(text("SELECT user_name,avatar_path FROM public.users WHERE user_id=:u"),{"u":row["user_id"]}).mappings().one()
-    photos=c.execute(text("SELECT photo_id,storage_path FROM public.photos WHERE record_id=:r ORDER BY sort_order,photo_id"),{"r":row["record_id"]}).mappings().all()
-    urls=["/api/photos/"+str(p["photo_id"]) for p in photos]
-    mentions=c.execute(text("SELECT u.user_id,u.user_name FROM public.record_mentions m JOIN public.users u USING(user_id) WHERE record_id=:r ORDER BY u.user_id"),{"r":row["record_id"]}).mappings().all()
-    comments=c.execute(text("SELECT c.text,c.create_time,u.user_id,u.user_name,u.avatar_path FROM public.platform_comments c JOIN public.users u USING(user_id) WHERE c.record_id=:r AND NOT c.is_deleted AND NOT c.moderation_hidden ORDER BY c.create_time,c.comment_id"),{"r":row["record_id"]}).mappings().all()
-    likes=int(c.execute(text("SELECT count(*) FROM public.record_likes WHERE record_id=:r"),{"r":row["record_id"]}).scalar() or 0)
-    is_liked=bool(viewer_id and c.execute(text("SELECT 1 FROM public.record_likes WHERE record_id=:r AND user_id=:u"),{"r":row["record_id"],"u":viewer_id}).scalar())
-    is_owner=bool(viewer_id and int(row["user_id"]) == int(viewer_id))
-    is_tagged=bool(viewer_id and any(int(m["user_id"]) == int(viewer_id) for m in mentions))
-    return dict(id=str(row["record_id"]),imageUrls=urls,urls=urls,url=urls[0] if urls else None,
-        timestamp=int(row["create_time"].timestamp()*1000),date=row["create_time"].astimezone(TAIPEI).date().isoformat(),
-        caption=row["text"] or "",location=row["location_text"] or "",restaurant_id=str(row["restaurant_id"]) if row["restaurant_id"] else None,
-        mentions=[dict(id=str(m["user_id"]),name=m["user_name"]) for m in mentions],
-        username=author["user_name"],userAvatar="/api/avatars/"+str(row["user_id"]) if author["avatar_path"] else None,
-        likes=likes,isLiked=is_liked,commentCount=len(comments),isOwner=is_owner,isTagged=is_tagged,canEdit=is_owner,
-        comments=[dict(user=x["user_name"],text=x["text"],avatar="/api/avatars/"+str(x["user_id"]) if x["avatar_path"] else None,timestamp=x["create_time"].isoformat()) for x in comments])
+def _cursor_encode(row):
+    payload=json.dumps([row["create_time"].isoformat(),str(row["record_id"])],separators=(",",":")).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+def _cursor_decode(cursor):
+    try:
+        payload=base64.urlsafe_b64decode(cursor+"="*((-len(cursor))%4))
+        created_text,record_text=json.loads(payload)
+        if not isinstance(created_text,str) or not isinstance(record_text,str) or len(record_text)>19:raise ValueError()
+        created_at=datetime.fromisoformat(created_text)
+        record_id=int(record_text)
+        if record_id<=0 or record_id>9223372036854775807:raise ValueError()
+        return created_at,record_id
+    except (ValueError,TypeError,KeyError,UnicodeError,json.JSONDecodeError):
+        raise HTTPException(422,"分頁游標不正確") from None
+
+def posts(c,rows,viewer_id=None,include_comments=False):
+    if not rows:return []
+    ids=[int(row["record_id"]) for row in rows]
+    authors={int(r["user_id"]):r for r in c.execute(text("""SELECT r.record_id,u.user_id,u.user_name,u.avatar_path
+        FROM public.records r JOIN public.users u USING(user_id) WHERE r.record_id=ANY(:ids)"""),{"ids":ids}).mappings()}
+    photos={}
+    for photo in c.execute(text("SELECT record_id,photo_id FROM public.photos WHERE record_id=ANY(:ids) ORDER BY record_id,sort_order,photo_id"),{"ids":ids}).mappings():
+        photos.setdefault(int(photo["record_id"]),[]).append(photo)
+    mentions={}
+    for mention in c.execute(text("""SELECT m.record_id,u.user_id,u.user_name FROM public.record_mentions m
+        JOIN public.users u USING(user_id) WHERE m.record_id=ANY(:ids) ORDER BY m.record_id,u.user_id"""),{"ids":ids}).mappings():
+        mentions.setdefault(int(mention["record_id"]),[]).append(mention)
+    comment_counts={int(r["record_id"]):int(r["count"]) for r in c.execute(text("""SELECT record_id,count(*) AS count
+        FROM public.platform_comments WHERE record_id=ANY(:ids) AND NOT is_deleted AND NOT moderation_hidden
+        GROUP BY record_id"""),{"ids":ids}).mappings()}
+    like_stats={int(r["record_id"]):r for r in c.execute(text("""SELECT record_id,count(*) AS likes,
+        COALESCE(bool_or(user_id=:viewer),false) AS is_liked FROM public.record_likes
+        WHERE record_id=ANY(:ids) GROUP BY record_id"""),{"ids":ids,"viewer":viewer_id}).mappings()}
+    comments={}
+    if include_comments:
+        for comment in c.execute(text("""SELECT c.record_id,c.text,c.create_time,u.user_id,u.user_name,u.avatar_path
+            FROM public.platform_comments c JOIN public.users u USING(user_id)
+            WHERE c.record_id=ANY(:ids) AND NOT c.is_deleted AND NOT c.moderation_hidden
+            ORDER BY c.create_time,c.comment_id"""),{"ids":ids}).mappings():
+            comments.setdefault(int(comment["record_id"]),[]).append(dict(user=comment["user_name"],text=comment["text"],
+                avatar="/api/avatars/"+str(comment["user_id"]) if comment["avatar_path"] else None,
+                timestamp=comment["create_time"].isoformat()))
+    result=[]
+    for row in rows:
+        record_id=int(row["record_id"]);author=authors[int(row["user_id"])];record_photos=photos.get(record_id,[])
+        record_mentions=mentions.get(record_id,[]);urls=["/api/photos/"+str(photo["photo_id"]) for photo in record_photos]
+        viewer_is_tagged=bool(viewer_id and any(int(item["user_id"])==int(viewer_id) for item in record_mentions))
+        is_owner=bool(viewer_id and int(row["user_id"])==int(viewer_id));stats=like_stats.get(record_id,{"likes":0,"is_liked":False})
+        value=dict(id=str(record_id),imageUrls=urls,urls=urls,url=urls[0] if urls else None,
+            timestamp=int(row["create_time"].timestamp()*1000),date=row["create_time"].astimezone(TAIPEI).date().isoformat(),
+            caption=row["text"] or "",location=row["location_text"] or "",restaurant_id=str(row["restaurant_id"]) if row["restaurant_id"] else None,
+            mentions=[dict(id=str(item["user_id"]),name=item["user_name"]) for item in record_mentions],
+            username=author["user_name"],userAvatar="/api/avatars/"+str(row["user_id"]) if author["avatar_path"] else None,
+            likes=int(stats["likes"]),isLiked=bool(stats["is_liked"]),commentCount=comment_counts.get(record_id,0),
+            isOwner=is_owner,isTagged=viewer_is_tagged,canEdit=is_owner)
+        if include_comments:value["comments"]=comments.get(record_id,[])
+        result.append(value)
+    return result
+
+def post(c,row,viewer_id=None,include_comments=False):
+    return posts(c,[row],viewer_id,include_comments)[0]
 @router.get("/get_memories")
-def memories(request:Request,email:str="",scope:str=Query("own",pattern="^(own|memories|social)$"),c=Depends(connection)):
+def memories(request:Request,email:str="",scope:str=Query("own",pattern="^(own|memories|social)$"),
+             limit:int|None=Query(None,ge=1,le=50),cursor:str=Query("",max_length=256),c=Depends(connection)):
     user=current_user(c,request);check_email(user,email)
+    if cursor and limit is None:raise HTTPException(422,"使用游標時必須指定每頁筆數")
+    before=_cursor_decode(cursor) if cursor else None
+    cursor_clause=" AND (r.create_time,r.record_id)<(:before_time,:before_id)" if before else ""
+    params={"u":user["user_id"]}
+    if before:params.update(before_time=before[0],before_id=before[1])
+    if limit is not None:params["fetch_limit"]=limit+1
     if scope in {"memories", "social"}:
-        rows=c.execute(text("""SELECT DISTINCT r.*
+        query="""SELECT DISTINCT r.*
             FROM public.records r
             LEFT JOIN public.record_mentions rm ON rm.record_id=r.record_id AND rm.user_id=:u
-            WHERE r.user_id=:u OR (r.moderation_status='visible' AND rm.user_id IS NOT NULL)
-            ORDER BY r.create_time DESC,r.record_id DESC"""),{"u":user["user_id"]}).mappings().all()
+            WHERE (r.user_id=:u OR (r.moderation_status='visible' AND rm.user_id IS NOT NULL))"""+cursor_clause+" ORDER BY r.create_time DESC,r.record_id DESC"
     else:
-        rows=c.execute(text("SELECT * FROM public.records WHERE user_id=:u ORDER BY create_time DESC,record_id DESC"),{"u":user["user_id"]}).mappings().all()
-    return [post(c,r,user["user_id"]) for r in rows]
+        query="SELECT r.* FROM public.records r WHERE r.user_id=:u"+cursor_clause+" ORDER BY r.create_time DESC,r.record_id DESC"
+    if limit is not None:query+=" LIMIT :fetch_limit"
+    rows=c.execute(text(query),params).mappings().all()
+    has_more=limit is not None and len(rows)>limit
+    if has_more:rows=rows[:limit]
+    items=posts(c,rows,user["user_id"])
+    if limit is None:return items
+    return {"items":items,"next_cursor":_cursor_encode(rows[-1]) if has_more and rows else None,"has_more":has_more}
 @router.get("/get_post/{record_id}")
 def get_post(record_id:int,request:Request,c=Depends(connection)):
-    user,row=accessible(c,request,record_id);return post(c,row,user["user_id"])
+    user,row=accessible(c,request,record_id);return post(c,row,user["user_id"],include_comments=True)
 def ids_json(value,limit=10):
     try:
         data=json.loads(value or "[]")
@@ -77,8 +135,13 @@ async def save_post(request:Request,c=Depends(connection)):
     initial_comment=str(form.get("initial_comment","")).strip()
     if len(initial_comment)>2000:raise HTTPException(422,"留言需為 2000 字元以內")
     for uid in mentions:
-        if uid==user["user_id"] or not c.execute(text("SELECT 1 FROM public.users WHERE user_id=:u AND email_verified"),{"u":uid}).scalar():
-            raise HTTPException(422,"標註會員不存在或無法選取")
+        accepted_friend=c.execute(text("""SELECT 1 FROM public.users target WHERE target.user_id=:other
+            AND (target.email_verified OR target.email_auth_exempt) AND target.account_status='active'
+            AND EXISTS (SELECT 1 FROM public.friend_requests fr WHERE fr.status='accepted'
+              AND ((fr.requester_id=:me AND fr.addressee_id=:other) OR (fr.requester_id=:other AND fr.addressee_id=:me)))"""),
+            {"me":user["user_id"],"other":uid}).scalar()
+        if uid==user["user_id"] or not accepted_friend:
+            raise HTTPException(422,"只能標註已接受的有效好友")
     location=None;restaurant_id=None
     photo_location_text=str(form.get("photo_location_text","")).strip()
     if len(photo_location_text)>200:raise HTTPException(422,"照片位置資訊過長")
@@ -192,17 +255,14 @@ def locations(request:Request,q:str=Query("",max_length=100),c=Depends(connectio
 @router.get("/members")
 def members(request:Request,q:str=Query("",max_length=80),c=Depends(connection)):
     user=current_user(c,request)
-    q=q.strip()
-    if not q:
-        # The tag-friend picker opens with the user's accepted friends ready.
-        rows=c.execute(text("""SELECT DISTINCT u.user_id,u.user_name,u.username
-            FROM public.friend_requests fr
-            JOIN public.users u ON u.user_id=CASE WHEN fr.requester_id=:u THEN fr.addressee_id ELSE fr.requester_id END
-            WHERE fr.status='accepted' AND (fr.requester_id=:u OR fr.addressee_id=:u)
-            ORDER BY u.user_name,u.user_id LIMIT 30"""),{"u":user["user_id"]}).mappings()
-    else:
-        query=q.replace("/","//").replace("%","/%").replace("_","/_")
-        rows=c.execute(text("SELECT user_id,user_name,username FROM public.users WHERE email_verified AND user_id<>:u AND (username ILIKE :q ESCAPE '/' OR user_name ILIKE :q ESCAPE '/') ORDER BY username,user_id LIMIT 20"),{"q":"%"+query+"%","u":user["user_id"]}).mappings()
+    query=q.strip().replace("/","//").replace("%","/%").replace("_","/_")
+    rows=c.execute(text("""SELECT DISTINCT u.user_id,u.user_name,u.username
+        FROM public.friend_requests fr
+        JOIN public.users u ON u.user_id=CASE WHEN fr.requester_id=:u THEN fr.addressee_id ELSE fr.requester_id END
+        WHERE fr.status='accepted' AND (fr.requester_id=:u OR fr.addressee_id=:u)
+          AND (u.email_verified OR u.email_auth_exempt) AND u.account_status='active'
+          AND (:q='' OR u.username ILIKE :q ESCAPE '/' OR u.user_name ILIKE :q ESCAPE '/')
+        ORDER BY u.user_name,u.user_id LIMIT 30"""),{"u":user["user_id"],"q":"%"+query+"%" if query else ""}).mappings()
     return {"items":[dict(id=str(r["user_id"]),name=r["user_name"],username=r["username"]) for r in rows]}
 class Comment(BaseModel):
     photo_id:str

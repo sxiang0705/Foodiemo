@@ -13,7 +13,7 @@ from app.core.config import Settings, ROOT
 from app.core.safety import assert_test_target, assert_test_connection, assert_test_path
 from app.main import create_app, get_session
 from app.models.restaurants import Restaurant
-from app.recommendation.service import card, map_link, encode_cursor, decode_cursor, recommend, RecommendationContext, RotationProvider
+from app.recommendation.service import card, map_link, safe_photo_url, encode_cursor, decode_cursor, recommend, RecommendationContext, RotationProvider
 
 SETTINGS=Settings("127.0.0.1",55433,"foodiemo_v2_test","foodiemo_v2_test_owner","fixture-secret","test")
 def row(id=9007199254740993,**kwargs):
@@ -108,9 +108,25 @@ def test_mapping_missing_safe_ids():
     item=card(row())
     assert item["id"]=="9007199254740993" and item["title"]=="<b>店 & 名</b>"
     assert all(item[k] is None for k in ["img","rating","hours","price"])
+    assert item["fallbackImg"] is None
     assert item["source"]=="postgresql"
     assert item["mapLink"].startswith("https://www.google.com/maps/search/?")
     assert "<b>" not in item["mapLink"]
+
+def test_restaurant_photo_preferred_and_food_photo_is_fallback():
+    item=card(row(restaurant_image_url="https://images.example/restaurant.jpg",
+                  food_image_url="https://images.example/food.jpg"))
+    assert item["img"]=="https://images.example/restaurant.jpg"
+    assert item["fallbackImg"]=="https://images.example/food.jpg"
+    food_only=card(row(restaurant_image_url=None,food_image_url="https://images.example/food-only.jpg"))
+    assert food_only["img"]=="https://images.example/food-only.jpg"
+    assert food_only["fallbackImg"] is None
+
+def test_photo_urls_require_https_and_safe_authority():
+    assert safe_photo_url("http://images.example/photo.jpg") is None
+    assert safe_photo_url("javascript:alert(1)") is None
+    assert safe_photo_url("https://user:password@images.example/photo.jpg") is None
+    assert safe_photo_url("https://images.example/photo.jpg") == "https://images.example/photo.jpg"
 def test_map_coordinates_and_invalid():
     assert "22.5%2C120.5" in map_link(row(latitude=22.5,longitude=120.5))
     assert "nan" not in map_link(row(latitude=float("nan"),longitude=120.5))

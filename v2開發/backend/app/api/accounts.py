@@ -31,6 +31,10 @@ def require_secret(request):
     if len(secret)<32:raise HTTPException(503,"帳號服務尚未完成安全設定")
     return secret
 def failed(status,message):return JSONResponse({"detail":message},status_code=status)
+def secure_session_cookie(request):
+    # HTTPS local demos must receive Secure cookies even when APP_ENV is development.
+    # Production stays secure behind a TLS-terminating proxy as well.
+    return request.url.scheme.lower()=="https" or request.app.state.settings.environment=="production"
 class EmailInput(BaseModel):
     email:str=Field(min_length=3,max_length=254)
     @field_validator("email")
@@ -143,7 +147,7 @@ def verify(data:Verify,request:Request,c=Depends(connection)):
         return {"reset_token":make_token(c,user["user_id"],"reset")}
     c.execute(text("UPDATE public.users SET email_verified=true WHERE user_id=:u"),{"u":user["user_id"]})
     response=JSONResponse(user_payload(c,user))
-    set_session(response,make_token(c,user["user_id"],"session"),request.app.state.settings.environment=="production")
+    set_session(response,make_token(c,user["user_id"],"session"),secure_session_cookie(request))
     return response
 
 @router.post("/login")
@@ -167,7 +171,7 @@ def login(data:Login,request:Request,c=Depends(connection)):
     c.execute(text("DELETE FROM public.login_limits WHERE key_hash=:k"),{"k":key})
     c.execute(text("UPDATE public.users SET last_login_at=now() WHERE user_id=:u"),{"u":user["user_id"]})
     response=JSONResponse(user_payload(c,user))
-    set_session(response,make_token(c,user["user_id"],"session"),request.app.state.settings.environment=="production")
+    set_session(response,make_token(c,user["user_id"],"session"),secure_session_cookie(request))
     return response
 
 @router.put("/me/username")

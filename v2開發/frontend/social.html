@@ -191,6 +191,7 @@
             <div id="mineFeed" class="post-card">
                 <div class="empty-state">&#30446;&#21069;&#36996;&#27794;&#26377;&#20320;&#30340;&#31038;&#32676;&#36028;&#25991;</div>
             </div>
+            <button id="mineFeedLoader" class="feed-loader" type="button" aria-controls="mineFeed" aria-live="polite" hidden>繼續下滑載入更多</button>
         </section>
 
         <section class="feed-panel" id="discoverPanel">
@@ -233,10 +234,11 @@
         const minePanel = document.getElementById("minePanel");
         const discoverPanel = document.getElementById("discoverPanel");
         const mineFeed = document.getElementById("mineFeed");
+        const mineFeedLoader = document.getElementById("mineFeedLoader");
         const discoverFeed = document.getElementById("discoverFeed");
 
         const socialPostStyle = document.createElement("style");
-        socialPostStyle.textContent = '.mine-filter-bar{display:flex;gap:8px;overflow-x:auto;padding:0 16px 14px;scrollbar-width:none}.mine-filter-bar::-webkit-scrollbar{display:none}.mine-filter-btn{flex:0 0 auto;border:1px solid rgba(156,124,102,.22);border-radius:999px;padding:8px 14px;background:rgba(255,255,255,.34);color:#9c887b;font-size:12px;font-weight:600;cursor:pointer;transition:background .18s ease,color .18s ease,box-shadow .18s ease}.mine-filter-btn.active{border-color:#9c7c66;background:#9c7c66;color:#fff;box-shadow:0 4px 10px rgba(120,88,68,.16)}.post-context{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:2px 7px;border-radius:999px;font-size:9px;line-height:1.3;font-weight:600;letter-spacing:.02em}.post-context.mine{background:rgba(114,103,96,.08);color:#9c928c}.post-context.tagged{background:rgba(156,124,102,.13);color:#9c7c66}.post-context.tagged .at-icon{font-size:11px;font-weight:800}';
+        socialPostStyle.textContent = '.mine-filter-bar{display:flex;gap:8px;overflow-x:auto;padding:0 16px 14px;scrollbar-width:none}.mine-filter-bar::-webkit-scrollbar{display:none}.mine-filter-btn{flex:0 0 auto;border:1px solid rgba(156,124,102,.22);border-radius:999px;padding:8px 14px;background:rgba(255,255,255,.34);color:#9c887b;font-size:12px;font-weight:600;cursor:pointer;transition:background .18s ease,color .18s ease,box-shadow .18s ease}.mine-filter-btn.active{border-color:#9c7c66;background:#9c7c66;color:#fff;box-shadow:0 4px 10px rgba(120,88,68,.16)}.post-context{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:2px 7px;border-radius:999px;font-size:9px;line-height:1.3;font-weight:600;letter-spacing:.02em}.post-context.mine{background:rgba(114,103,96,.08);color:#9c928c}.post-context.tagged{background:rgba(156,124,102,.13);color:#9c7c66}.post-context.tagged .at-icon{font-size:11px;font-weight:800}.feed-loader{display:block;width:100%;min-height:48px;padding:12px;border:0;background:transparent;color:#9c887b;font:inherit;font-weight:600;font-size:12px;cursor:pointer}.feed-loader[hidden]{display:none}.feed-loader.loading{cursor:default}.feed-loader.loading::before{content:"";display:inline-block;width:12px;height:12px;margin-right:8px;border:2px solid rgba(156,124,102,.25);border-top-color:#9c7c66;border-radius:50%;vertical-align:-2px;animation:feedSpin .7s linear infinite}@keyframes feedSpin{to{transform:rotate(360deg)}}';
         document.head.appendChild(socialPostStyle);
 
         const mineFilterBar = document.createElement("div");
@@ -258,6 +260,12 @@
 
         let myPosts = [];
         let discoverPosts = [];
+        const minePageSize = 25;
+        let mineNextCursor = null;
+        let mineHasMore = true;
+        let mineInitialLoading = false;
+        let mineLoadingMore = false;
+        let minePageFailed = false;
         let menuTimer = null;
         const likeBusy = new Set();
 
@@ -348,10 +356,10 @@
                 }));
         }
 
-        function normalizeMinePosts(posts) {
+        function normalizeMinePosts(posts, append = false) {
             const myName = localStorage.getItem("myProfileName") || "User";
             const myAvatar = getStoredAvatarUrl();
-            myPosts = (posts || []).map((post) => ({
+            const normalized = (posts || []).map((post) => ({
                 ...post,
                 username: post.username || myName,
                 handle: TEXT.myHandle,
@@ -367,6 +375,14 @@
                 isTagged: post.isTagged === true,
                 canEdit: post.canEdit !== false
             }));
+            if (!append) {
+                myPosts = normalized;
+                return normalized;
+            }
+            const existing = new Set(myPosts.map(post => String(post.id)));
+            const added = normalized.filter(post => !existing.has(String(post.id)));
+            myPosts.push(...added);
+            return added;
         }
 
         function getMenu(feedType, postId, post = {}) {
@@ -453,13 +469,17 @@
             `;
         }
 
-        function renderFeed(target, posts, feedType) {
+        function renderFeed(target, posts, feedType, append = false) {
             if (!posts.length) {
-                target.innerHTML = `<div class="empty-state">${feedType === "mine" ? TEXT.emptyMine : TEXT.emptyDiscover}</div>`;
+                if (!append) target.innerHTML = `<div class="empty-state">${feedType === "mine" ? TEXT.emptyMine : TEXT.emptyDiscover}</div>`;
                 return;
             }
 
-            target.innerHTML = posts.map((post) => `<article class="post-card">${renderPost(post, feedType)}</article>`).join("");
+            const html = posts.map((post) => `<article class="post-card">${renderPost(post, feedType)}</article>`).join("");
+            if (append) {
+                target.querySelector(":scope > .empty-state")?.remove();
+                target.insertAdjacentHTML("beforeend", html);
+            } else target.innerHTML = html;
         }
 
         function renderMineFeed() {
@@ -477,23 +497,95 @@
 
         async function loadMineFeed() {
             const email = localStorage.getItem("myProfileEmail");
+            if (mineInitialLoading) return;
+            mineInitialLoading = true;
+            mineNextCursor = null;
+            mineHasMore = true;
+            minePageFailed = false;
+            updateMineFeedLoader();
             if (!email) {
                 myPosts = [];
                 renderMineFeed();
+                mineInitialLoading = false;
+                mineHasMore = false;
+                updateMineFeedLoader();
                 return;
             }
 
             try {
                 await loadFoodiemoRecords(result=>{
-                normalizeMinePosts(Array.isArray(result) ? result : (result.data || []));
-                renderMineFeed();
-                }, {scope: "social"});
+                    normalizeMinePosts(Array.isArray(result) ? result : (result.data || []));
+                    renderMineFeed();
+                }, {scope: "social",pageSize:minePageSize,onPageInfo:info=>{
+                    mineNextCursor=info.nextCursor;
+                    mineHasMore=info.hasMore;
+                    minePageFailed=false;
+                    updateMineFeedLoader();
+                }});
             } catch (error) {
                 console.error(TEXT.feedLoadFailed, error);
-                if(!mineFeed.children.length)mineFeed.textContent = "讀取貼文失敗，請稍後再試";
+                minePageFailed = true;
+                if(!myPosts.length)mineFeed.textContent = "讀取貼文失敗，請稍後再試";
+            } finally {
+                mineInitialLoading = false;
+                updateMineFeedLoader();
+            }
+        }
+
+        function updateMineFeedLoader() {
+            const canLoad = mineHasMore && (!!mineNextCursor || mineInitialLoading);
+            mineFeedLoader.hidden = !canLoad && !minePageFailed;
+            mineFeedLoader.disabled = mineInitialLoading || mineLoadingMore;
+            mineFeedLoader.classList.toggle("loading",mineInitialLoading || mineLoadingMore);
+            if (minePageFailed) mineFeedLoader.textContent = "載入失敗，點擊重試";
+            else if (mineInitialLoading || mineLoadingMore) mineFeedLoader.textContent = "載入中…";
+            else mineFeedLoader.textContent = "繼續下滑載入更多";
+        }
+
+        async function loadNextMinePage() {
+            if (mineInitialLoading || mineLoadingMore || minePageFailed || !mineHasMore || !mineNextCursor) return;
+            mineLoadingMore = true;
+            updateMineFeedLoader();
+            try {
+                const page = await window.fetchFoodiemoRecordPage(mineNextCursor,minePageSize);
+                const added = normalizeMinePosts(Array.isArray(page.items) ? page.items : [],true);
+                const visible = activeMineFilter === "mine"
+                    ? added.filter(post => post.isOwner === true)
+                    : activeMineFilter === "tagged"
+                        ? added.filter(post => post.isTagged === true && post.isOwner !== true)
+                        : added;
+                renderFeed(mineFeed,visible,"mine",true);
+                mineNextCursor = page.next_cursor || null;
+                mineHasMore = page.has_more === true;
+                minePageFailed = false;
+            } catch (error) {
+                console.error("載入更多貼文失敗",error);
+                minePageFailed = true;
+            } finally {
+                mineLoadingMore = false;
+                updateMineFeedLoader();
+            }
+        }
+
+        mineFeedLoader.addEventListener("click",()=>{
+            if (minePageFailed) {
+                minePageFailed=false;
+                if (mineNextCursor) loadNextMinePage();
+                else loadMineFeed();
                 return;
             }
-
+            loadNextMinePage();
+        });
+        if ("IntersectionObserver" in window) {
+            const feedObserver = new IntersectionObserver(entries=>{
+                if (entries.some(entry=>entry.isIntersecting)) loadNextMinePage();
+            },{rootMargin:"400px 0px"});
+            feedObserver.observe(mineFeedLoader);
+        } else {
+            window.addEventListener("scroll",()=>{
+                if (mineFeedLoader.hidden) return;
+                if (mineFeedLoader.getBoundingClientRect().top < window.innerHeight+400) loadNextMinePage();
+            },{passive:true});
         }
 
         function closeMentionPopovers(exceptKey = "") {

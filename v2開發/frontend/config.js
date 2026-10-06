@@ -4,7 +4,7 @@ function resolveApiBaseUrl() {
     return window.location.origin + "/api";
 }
 
-const FOODIEMO_BUILD = Object.freeze({version: "v2.2.1", updatedAt: "2026-09-23T17:30:13+08:00"});
+const FOODIEMO_BUILD = Object.freeze({version: "v2.2.2", updatedAt: "2026-10-07T00:30:15+08:00"});
 window.FOODIEMO_BUILD = FOODIEMO_BUILD;
 
 const DB_CONFIG = {
@@ -39,10 +39,12 @@ window.loadFoodiemoRecords = async function(render, options = {}) {
     // records where the signed-in member is tagged.
     const scope = ['memories', 'social'].includes(options.scope) ? options.scope : 'own';
     const cacheName = scope === 'memories' ? 'memories-records' : (scope === 'social' ? 'social-records' : 'records');
-    const query = scope === 'memories' ? '?scope=memories' : (scope === 'social' ? '?scope=social' : '');
+    const pageSize = scope === 'social' && Number.isInteger(options.pageSize) ? Math.max(1,Math.min(50,options.pageSize)) : null;
+    const query = scope === 'memories' ? '?scope=memories' : (scope === 'social' ? (pageSize ? '?scope=social&limit='+pageSize : '?scope=social') : '');
     // Render the last account-scoped snapshot immediately. Session verification and
     // the network refresh continue in the background, so a return is not blank.
-    const cached=FoodiemoViewCache.read(cacheName);
+    const storedCache=FoodiemoViewCache.read(cacheName);
+    const cached=pageSize && Array.isArray(storedCache) ? storedCache.slice(0,pageSize) : storedCache;
     if(cached!==null)render(cached);
     const user=await window.FoodiemoSessionReady;
     if(!user)return;
@@ -50,10 +52,23 @@ window.loadFoodiemoRecords = async function(render, options = {}) {
     const response=await fetch(DB_CONFIG.apiUrl+'/get_memories'+query);
     if(response.status===401){FoodiemoViewCache.clear();window.top.location.replace('login.html');return;}
     if(!response.ok)throw new Error('資料更新失敗，請稍後重試');
-    const result=await response.json();
+    const payload=await response.json();
+    const result=Array.isArray(payload) ? payload : (Array.isArray(payload.items) ? payload.items : []);
     if(generation!==sessionStorage.getItem('foodiemo-record-generation') || user.email!==localStorage.getItem('myProfileEmail'))return;
     FoodiemoViewCache.write(cacheName,result);
     if(JSON.stringify(cached)!==JSON.stringify(result))render(result);
+    if(pageSize && typeof options.onPageInfo==='function')options.onPageInfo({nextCursor:payload.next_cursor||null,hasMore:payload.has_more===true});
+};
+window.fetchFoodiemoRecordPage = async function(cursor, limit = 25) {
+    const user=await window.FoodiemoSessionReady;
+    if(!user)return {items:[],next_cursor:null,has_more:false};
+    const pageSize=Math.max(1,Math.min(50,Number.parseInt(limit,10)||25));
+    const params=new URLSearchParams({scope:'social',limit:String(pageSize)});
+    if(cursor)params.set('cursor',cursor);
+    const response=await fetch(DB_CONFIG.apiUrl+'/get_memories?'+params.toString());
+    if(response.status===401){FoodiemoViewCache.clear();window.top.location.replace('login.html');return {items:[],next_cursor:null,has_more:false};}
+    if(!response.ok)throw new Error('資料更新失敗，請稍後重試');
+    return response.json();
 };
 
 window.fetch = function(resource, options = {}) {

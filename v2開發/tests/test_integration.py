@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect,text
 from sqlalchemy.exc import DBAPIError
@@ -29,8 +30,9 @@ def test_migration_reentry(engine):
     config=Config(str(ROOT/"alembic.ini"))
     command.upgrade(config,"head");command.upgrade(config,"head")
     with engine.connect() as c:
-        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()=="0008_email_less_first_admin"
-        assert len(inspect(c).get_table_names(schema="public"))==25
+        assert c.execute(text("SELECT version_num FROM public.alembic_version")).scalar()==ScriptDirectory.from_config(config).get_current_head()
+        columns={column["name"] for column in inspect(c).get_columns("restaurant_rows",schema="public")}
+        assert {"restaurant_image_url","food_image_url"}.issubset(columns)
 @pytest.fixture
 def fixture_connection(engine):
     with engine.connect() as c:

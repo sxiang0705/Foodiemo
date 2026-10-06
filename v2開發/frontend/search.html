@@ -385,6 +385,22 @@
             } catch (_) { return fallbackCardImage(); }
         }
 
+        function setRestaurantImage(image, item) {
+            const sources = [...new Set([item?.img, item?.fallbackImg]
+                .map(safeImage).filter(source => source !== fallbackCardImage()))];
+            let sourceIndex = 0;
+            image.referrerPolicy = 'no-referrer';
+            image.onerror = () => {
+                if (sourceIndex + 1 < sources.length) {
+                    image.src = sources[++sourceIndex];
+                    return;
+                }
+                image.onerror = null;
+                image.src = fallbackCardImage();
+            };
+            image.src = sources[0] || fallbackCardImage();
+        }
+
         function renderEmpty(message) {
             currentRestaurants = [];
             const node = document.createElement('div');
@@ -412,8 +428,9 @@
                 const img = document.createElement('img');
                 img.className = 'card-img';
                 img.alt = item.title || '未命名餐廳';
-                img.src = safeImage(item.img);
-                img.onerror = () => { img.onerror = null; img.src = fallbackCardImage(); };
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                setRestaurantImage(img, item);
                 const overlay = document.createElement('div');
                 overlay.className = 'card-info-overlay';
                 [['card-title', item.title || '未命名餐廳'],
@@ -500,8 +517,9 @@
 
         function openDetail(item, source, runId) {
             const detailImage = document.getElementById('modal-img');
-            detailImage.onerror = () => { detailImage.onerror = null; detailImage.src = fallbackCardImage(); };
-            detailImage.src = safeImage(item.img);
+            detailImage.loading = 'eager';
+            detailImage.decoding = 'async';
+            setRestaurantImage(detailImage, item);
             document.getElementById('modal-title').innerText = item.title || '未命名餐廳';
             document.getElementById('modal-subtitle').innerText = item.subtitle || '餐廳推薦';
             document.getElementById('modal-rating').innerText = item.rating != null ? `評分 ${item.rating}` : '評分未提供';
@@ -509,7 +527,7 @@
             document.getElementById('modal-price').innerText = item.price || '價格未提供';
             document.getElementById('modal-address').innerText = item.address || '地址未提供';
             document.getElementById('modal-source-label').innerText = '餐廳資料';
-            document.getElementById('modal-source-text').innerText = '這筆店家資訊來自餐廳資料庫。未提供的照片、評分與價位不以示意數值代替，營業時間請以店家公告為準。';
+            document.getElementById('modal-source-text').innerText = '店家資料來自餐廳資料庫。餐廳照片缺漏或無法載入時會顯示食物照片；評分與價位目前未提供，營業時間請以店家公告為準。';
 
             currentDetailMapLink = item.mapLink || '';
             currentDetailSource = source;

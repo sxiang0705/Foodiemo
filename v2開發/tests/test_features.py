@@ -50,6 +50,14 @@ def register(client,mail,email='feature@example.test',name='測試會員',userna
     assert r.status_code==200,r.text
     return r.json()
 
+def accept_friend(client,app,owner,friend):
+    created=client.post('/api/friends/requests',json={'user_id':int(friend['id'])})
+    assert created.status_code==200,created.text
+    with TestClient(app) as friend_client:
+        assert friend_client.post('/api/login',json={'email':friend['email'],'password':'Correct-password-1'}).status_code==200
+        approved=friend_client.post('/api/friends/requests/'+created.json()['request_id']+'/approve')
+        assert approved.status_code==200,approved.text
+
 def jpeg(color='red'):
     out=BytesIO();Image.new('RGB',(32,24),color).save(out,'JPEG');return out.getvalue()
 
@@ -173,12 +181,16 @@ def test_photos_order_mentions_ownership_delete(setup):
     c,mail,db,app=setup
     other=register(c,mail,'other@example.test','好友測試')
     c.cookies.clear();user=register(c,mail)
+    data=dict(restaurant_id='981234',mention_ids='["'+other['id']+'"]')
+    assert c.get('/api/members?q=好友').json()['items']==[]
+    unaccepted=c.post('/api/upload_memory_post',data=data,files=[('files',('blocked.jpg',jpeg(),'image/jpeg'))])
+    assert unaccepted.status_code==422
+    accept_friend(c,app,user,other)
     db.execute(text('INSERT INTO restaurant_rows (restaurant_id,"googleMaps_id",title) VALUES (981234,\'feature-test\',\'測試地點\')'))
     assert c.get('/api/locations?q=測試').json()['items'][0]['id']=='981234'
     tagged_people=c.get('/api/members?q=好友').json()['items']
     assert tagged_people==[dict(id=other['id'],name='好友測試',username=other['username'])]
     assert c.get('/api/members?q=other').json()['items'][0]['username']==other['username']
-    data=dict(restaurant_id='981234',mention_ids='["'+other['id']+'"]')
     r=c.post('/api/upload_memory_post',data=data,files=[('files',('a.jpg',jpeg(),'image/jpeg')),('files',('b.jpg',jpeg('blue'),'image/jpeg'))])
     assert r.status_code==200,r.text
     record=r.json()['id'];post=c.get('/api/get_post/'+record).json();a,b=post['imageUrls']
@@ -210,6 +222,7 @@ def test_tagged_post_is_in_memories_and_can_be_untagged(setup):
     tagged=register(c,mail,'memory-tagged@example.test','被標記會員')
     c.cookies.clear()
     assert c.post('/api/login',json={'email':owner['email'],'password':'Correct-password-1'}).status_code==200
+    accept_friend(c,app,owner,tagged)
     created=c.post('/api/upload_memory_post',data={'mention_ids':'["'+tagged['id']+'"]'},files={'files':('tagged.jpg',jpeg(),'image/jpeg')})
     assert created.status_code==200,created.text
     record=created.json()['id']
@@ -238,7 +251,6 @@ def test_capture_message_creates_comment_and_like_persists(setup):
     assert post['commentCount']==1
     assert post['location']=='照片位置 25.03300, 121.56540'
     assert post['likes']==0 and post['isLiked'] is False
-    assert 'email' not in post
     assert c.post('/api/posts/'+record+'/like').json()=={'status':'success','liked':True}
     post=c.get('/api/get_post/'+record).json()
     assert post['likes']==1 and post['isLiked'] is True
@@ -249,8 +261,52 @@ def test_capture_message_creates_comment_and_like_persists(setup):
     post=c.get('/api/get_post/'+record).json()
     assert post['likes']==0 and post['isLiked'] is False
     assert 'email' not in post
+    assert 'email' not in post
+def test_social_feed_cursor_pages_and_defers_comments(setup):
+    c,mail,db,app=setup
+    register(c,mail,'feed-pages@example.test','分頁測試')
+    records=[]
+    for index in range(3):
+        result=c.post('/api/upload_memory_post',data={'initial_comment':f'第 {index+1} 則留言'},
+                      files={'files':(f'feed-{index}.jpg',jpeg(),'image/jpeg')})
+        assert result.status_code==200,result.text
+        records.append(result.json()['id'])
+
+    first=c.get('/api/get_memories',params={'scope':'social','limit':2})
+    assert first.status_code==200,first.text
+    first_page=first.json()
+    assert len(first_page['items'])==2 and first_page['has_more'] is True
+    assert all('comments' not in item and item['commentCount']==1 for item in first_page['items'])
+    second=c.get('/api/get_memories',params={'scope':'social','limit':2,'cursor':first_page['next_cursor']})
+    assert second.status_code==200,second.text
+    second_page=second.json()
+    assert len(second_page['items'])==1 and second_page['has_more'] is False
+    all_ids=[item['id'] for item in first_page['items']+second_page['items']]
+    assert len(set(all_ids))==3 and set(all_ids)==set(records)
+    detail=c.get('/api/get_post/'+first_page['items'][0]['id'])
+    assert detail.status_code==200 and len(detail.json()['comments'])==1
+    assert c.get('/api/get_memories',params={'scope':'social','limit':2,'cursor':'invalid'}).status_code==422
 
 
+def test_session_cookie_is_secure_only_when_request_uses_https(setup):
+    client,mail,db,app=setup
+    secure_client=TestClient(app,base_url='https://testserver')
+    response=secure_client.post('/api/register',json={'email':'secure-cookie@example.test','name':'HTTPS 測試',
+        'username':'secure_cookie','password':'Correct-password-1'})
+    assert response.status_code==200,response.text
+    verified=secure_client.post('/api/verify_email_code',json={'email':'secure-cookie@example.test',
+        'purpose':'signup','code':mail.messages[-1]['code']})
+    assert verified.status_code==200
+    assert '; secure' in verified.headers['set-cookie'].lower()
+
+    plain_client=TestClient(app,base_url='http://testserver')
+    response=plain_client.post('/api/register',json={'email':'plain-cookie@example.test','name':'HTTP 測試',
+        'username':'plain_cookie','password':'Correct-password-1'})
+    assert response.status_code==200,response.text
+    verified=plain_client.post('/api/verify_email_code',json={'email':'plain-cookie@example.test',
+        'purpose':'signup','code':mail.messages[-1]['code']})
+    assert verified.status_code==200
+    assert '; secure' not in verified.headers['set-cookie'].lower()
 def test_friend_search_request_approve_and_list(setup):
     c,mail,db,app=setup
     friend=register(c,mail,'friend@example.test','好友會員')

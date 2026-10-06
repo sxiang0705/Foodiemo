@@ -127,6 +127,7 @@ async function settled(page){
     check(await page.locator('#modal-title').innerText()==='餐廳1','REST-05 overlay uses selected card');
     check(await page.locator('#modal-rating').innerText()==='評分未提供','REST-08 no fabricated rating');
     check(!(await page.locator('#modal-source-text').innerText()).includes('Google Places API'),'REST-12 database source text');
+    check(!(await page.locator('#modal-source-text').innerText()).includes('未提供的照片'),'REST-14 detail copy reflects the available photo sources');
     await page.evaluate(()=>{window.__map=null;window.open=(...args)=>{window.__map=args;};});
     await page.locator('.navigate-btn').click();
     const map=await page.evaluate(()=>window.__map);
@@ -134,6 +135,23 @@ async function settled(page){
     await page.locator('.detail-nav .nav-circle').click();await delay(350);
     check(!(await page.locator('#detailModal').isVisible()),'REST-05 closes overlay preserves list');
     check(await page.locator('.card').count()===3,'REST-05 list remains');
+
+    const restaurantPhoto='https://images.example/restaurant.jpg';
+    const foodPhoto='https://images.example/food.jpg';
+    await page.route('**/restaurant.jpg',route=>route.abort());
+    await page.route('**/food.jpg',route=>route.fulfill({status:200,contentType:'image/svg+xml',
+      body:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#a80"/></svg>'}));
+    await page.route('**/restaurants/recommendations?**',route=>route.fulfill({contentType:'application/json',
+      body:JSON.stringify(body([{...fixtureItems()[0],img:restaurantPhoto,fallbackImg:foodPhoto}]))}));
+    await page.evaluate(()=>fetchRestaurants());await settled(page);
+    check(new URL(await page.locator('.card-img').getAttribute('src')).pathname==='/food.jpg'
+      && await page.locator('.card-img').evaluate(img=>img.naturalWidth>0),'REST-13 failed restaurant image falls back to food image');
+    await page.locator('.card').click();await page.locator('#detailModal.active').waitFor();
+    check(new URL(await page.locator('#modal-img').getAttribute('src')).pathname==='/food.jpg'
+      && await page.locator('#modal-img').evaluate(img=>img.naturalWidth>0),'REST-13 detail uses the same food-image fallback');
+    await page.locator('.detail-nav .nav-circle').click();await delay(350);
+    await page.unroute('**/restaurant.jpg');await page.unroute('**/food.jpg');
+    await page.unroute('**/restaurants/recommendations?**');
 
     // Hostile fixture is text, and unsafe URL never executes.
     await page.route('**/restaurants/recommendations?**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(body([
@@ -225,10 +243,14 @@ async function settled(page){
       await p.goto(BASE+'/search.html');
       await p.locator('.card').first().waitFor({timeout:15000});
       check(await p.locator('.card').count()===3,'LIVE PostgreSQL three original cards');
+      await p.waitForFunction(()=>{const image=document.querySelector('.card-img');return image?.complete;},{},{timeout:15000});
+      check(await p.locator('.card-img').first().evaluate(image=>image.naturalWidth>0),'LIVE first recommendation photo loaded');
       const first=await p.locator('.card').first().getAttribute('data-restaurant-id');
       await touchPull(p,140);await delay(700);
       check(await p.locator('.card').first().getAttribute('data-restaurant-id')!==first,'LIVE PostgreSQL pull rotates batch');
       await p.locator('.card').first().click();await p.locator('#detailModal.active').waitFor();
+      await p.waitForFunction(()=>{const image=document.getElementById('modal-img');return image?.complete;},{},{timeout:15000});
+      check(await p.locator('#modal-img').evaluate(image=>image.naturalWidth>0),'LIVE recommendation detail photo loaded');
       await p.screenshot({path:path.join(OUT,'v2-live-detail.png')});
       await p.locator('.detail-nav .nav-circle').click();await delay(350);
       await p.screenshot({path:path.join(OUT,'v2-live-search.png')});

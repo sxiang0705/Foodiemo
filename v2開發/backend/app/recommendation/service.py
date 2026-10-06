@@ -4,7 +4,7 @@ import binascii
 import math
 from dataclasses import dataclass
 from typing import Protocol
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from sqlalchemy import select
 from app.models.restaurants import Restaurant
 
@@ -61,10 +61,26 @@ def map_link(row):
         query = " ".join(x for x in [row.title, row.address] if x)
     return "https://www.google.com/maps/search/?" + urlencode({"api":"1","query":query}) if query else None
 
+def safe_photo_url(value):
+    """Expose only well-formed HTTPS image URLs from the curated data source."""
+    if not isinstance(value, str) or not value or len(value) > 2048 or any(ch.isspace() for ch in value):
+        return None
+    try:
+        parsed = urlsplit(value)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+            or parsed.password is not None or parsed.port not in (None, 443)):
+            return None
+        return value
+    except ValueError:
+        return None
+
 def card(row):
-    # No verified photo/rating/price columns; unknown weekday origin is not guessed.
+    restaurant_image = safe_photo_url(getattr(row, "restaurant_image_url", None))
+    food_image = safe_photo_url(getattr(row, "food_image_url", None))
     result = dict(id=str(row.restaurant_id), title=row.title, subtitle=row.category,
-                img=None, rating=None, hours=None, price=None, address=row.address,
+                img=restaurant_image or food_image,
+                fallbackImg=food_image if restaurant_image and food_image != restaurant_image else None,
+                rating=None, hours=None, price=None, address=row.address,
                 mapLink=map_link(row), source="postgresql")
     score = getattr(row, "score", None)
     reasons = getattr(row, "reasons", None)

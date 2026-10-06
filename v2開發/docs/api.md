@@ -12,7 +12,8 @@ count 為 1–3，原版固定 3。cursor 是上次 next_cursor 的不透明值�
     "id": "9007199254740993",
     "title": "店名",
     "subtitle": null,
-    "img": null,
+    "img": "https://images.example/restaurant.jpg",
+    "fallbackImg": "https://images.example/food.jpg",
     "rating": null,
     "hours": null,
     "price": null,
@@ -26,7 +27,7 @@ count 為 1–3，原版固定 3。cursor 是上次 next_cursor 的不透明值�
 }
 ~~~
 
-ID 始終是十進位字串，避免 JavaScript bigint 精度流失。title／subtitle／address 保留資料文字，前端使用安全文字節點，不解讀 HTML。restaurant_rows 尚無可靠照片、總評分、價位欄位；目前 business_hours 為空且 weekday 起算未核對，因此 hours 留空，原位置提示查看地圖。後續取得可靠來源再映射，不造值。
+ID 始終是十進位字串，避免 JavaScript bigint 精度流失。title／subtitle／address 保留資料文字，前端使用安全文字節點，不解讀 HTML。`img` 優先回傳 `restaurant_rows.restaurant_image_url`；餐廳圖缺漏時直接使用 `food_image_url`。若餐廳圖存在但瀏覽器載入失敗，`fallbackImg` 提供食物圖；詳情與卡片使用同一順序，兩張都失敗時才呈現本機佔位圖。圖片 URL 只接受 HTTPS，來源由 `data/restaurant_image_links.csv` 維護。評分仍沒有可靠來源，`business_hours` 目前為空且 weekday 起算未核對，因此 hours 留空，原位置提示查看地圖；不造值。
 
 mapLink 以有效座標或店名／地址 URL 編碼組成 Google Maps 搜尋；不把 googleMaps_id 當成已確認的 Places ID。前端只允許 https://www.google.com/maps/ 地圖連結，另開視窗使用 noopener。
 
